@@ -17,8 +17,8 @@ how a bridge runs.
 
 | Flag | Default | |
 | --- | --- | --- |
-| `-subtree-listen` | `[::]:9163` | subtree lane, bare BRC-143 push frames |
-| `-block-listen` | `[::]:9164` | block lane, bare BRC-144 push frames |
+| `-subtree-listen` | `[::]:9143` | subtree lane, bare BRC-143 push frames (canonical, shared with teranode-bridge) |
+| `-block-listen` | `[::]:9144` | block lane, bare BRC-144 push frames (canonical, shared with teranode-bridge) |
 | `-max-object` | `0` | per-object size ceiling; `0` means the codec default |
 
 Each lane is a dedicated TCP listener carrying exactly one object class. The
@@ -137,9 +137,18 @@ arcade-bridge \
 
 ## Lane numbers
 
-The lane defaults (`9163`/`9164`) deliberately sit clear of teranode-bridge's
-(`9143`/`9144`) so both shims can share a host. The outbound port (`8725`)
-matches the object plane's transaction class number: the facade submits on
-the open class, which is the whole point. A bridge for a non-mining consumer
-has no business on the miner-gated object-submit ports, and none is
-configured here.
+The delivery lanes default to the canonical `9143`/`9144`, the same numbers
+teranode-bridge uses. A landing site receives each object class once, on the
+canonical port, whichever bridge terminates it. Two bridges cannot bind these
+on one host, and that is deliberate: it forecloses the wasteful topology where
+two consumer slots at one site pull the same objects across the tunnel twice.
+A site that runs both an Arcade stack and a Teranode cluster delivers over ONE
+slot into a small local tee that fans to both over loopback; the bridges then
+take distinct loopback ports behind it. That design, and why divergent lane
+ports are allowed only on loopback, is in
+[deliver-once.md](deliver-once.md).
+
+The outbound port (`8725`) matches the object plane's transaction class
+number: the facade submits on the open class, which is the whole point. A
+bridge for a non-mining consumer has no business on the miner-gated
+object-submit ports, and none is configured here.

@@ -28,15 +28,23 @@ the bytes from the announcing datahub across the network. Behind this bridge,
 the same objects are already pushed to the landing machine, so the fetch never
 leaves the box:
 
-```
- multicast fabric ══ push ══▶  arcade-bridge                   Arcade v2 stack
-                               ├─ subtree lane (BRC-143) ─▶ cache ─▶ announce ──▶ merkle-service
-                               ├─ block lane   (BRC-144) ─▶ cache ─▶ announce      {hash, dataHubUrl}
-                               └─ retrieval plane ◀───────────── fetch ─────────────────┘
-                                                                                        │
-                                              STUMP / BLOCK_PROCESSED callbacks ─▶ arcade
-                                                                                        │
-                                                                     MINED + merkle path ▶ clients
+```mermaid
+flowchart LR
+    F(["multicast<br/>fabric"])
+    subgraph AB["arcade-bridge"]
+        direction TB
+        L["subtree + block lanes<br/>BRC-143 / BRC-144"] --> C["cache"]
+        C --> AN["announce"]
+        C --> RP["retrieval plane"]
+    end
+    MS["merkle-service"]
+    AR["Arcade v2"]
+    CL(["clients"])
+    F -->|push| L
+    AN -->|"hash + dataHubUrl"| MS
+    MS -->|"fetch subtree / block"| RP
+    MS -->|"STUMP, BLOCK_PROCESSED"| AR
+    AR -->|"MINED + merkle path"| CL
 ```
 
 The announcements are merkle-service's own Kafka messages with `dataHubUrl`
@@ -53,14 +61,24 @@ Teranode-shaped `POST /txs` surface Arcade already speaks, and forwards one
 copy up the consumer tunnel into the fabric's open transaction ingress. The
 fabric fans it out to every miner-tier consumer:
 
-```
-                          ┌─ arcade-bridge facade ─────────────┐
- arcade ── POST /txs ────▶│  parse ─▶ ensure extended format   │           ┌──▶ miner A
- propagation              │             │                      │           │
-      ◀── per-tx verdicts │   recent cache + asset fallback    │  fabric ══╪══▶ miner B
-          (Teranode's own │             │                      │           │
-          failure-list    │  up-tunnel: one bare EF stream ════╪══▶ ingress└──▶ miner N
-          grammar)        └────────────────────────────────────┘
+```mermaid
+flowchart LR
+    AR["Arcade<br/>propagation"]
+    subgraph AB["arcade-bridge facade"]
+        direction TB
+        FAC["parse,<br/>ensure extended format"] --> HY["recent cache<br/>+ asset fallback"]
+        HY --> UT["up-tunnel:<br/>one bare EF stream"]
+    end
+    FB(["fabric<br/>ingress"])
+    M1["miner A"]
+    M2["miner B"]
+    M3["miner N"]
+    AR -->|"POST /txs"| FAC
+    FAC -.->|"per-tx verdicts"| AR
+    UT -->|"one copy"| FB
+    FB --> M1
+    FB --> M2
+    FB --> M3
 ```
 
 The response contract is Teranode's own failure-list grammar, so Arcade's
@@ -78,6 +96,7 @@ Arcade already knows how to retry.
 - [Configuration](docs/configuration.md): every flag, defaults, deployment examples, reading the stats
 - [BRC-143 Subtree Data](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-143-subtree-data.md) and [BRC-144 Block Frame](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-144-block-frame.md): what the delivery lanes carry
 - [BRC-30 Transaction Extended Format](https://github.com/bsv-blockchain/BRCs/blob/master/transactions/0030.md): what the up-tunnel stream carries
+- [Deliver once](docs/deliver-once.md): one crossing per landing site, and how a co-located Arcade + Teranode site fans locally
 
 ## Requirements
 
@@ -122,16 +141,20 @@ reference.
 
 | Port | Direction | Carries |
 | --- | --- | --- |
-| `9163` | in | subtree lane (bare BRC-143 push frames) |
-| `9164` | in | block lane (bare BRC-144 push frames) |
+| `9143` | in | subtree lane (bare BRC-143 push frames) |
+| `9144` | in | block lane (bare BRC-144 push frames) |
 | `9165` | in | retrieval plane, merkle-service's fetches (`/api/v1`) |
 | `9166` | in | propagation facade (`POST /txs`, `POST /tx`, `GET /health`) |
 | `9167` | in | `/metrics`, `/healthz`, `/readyz` |
 | `8725` | out | bare BRC-30 EF transaction stream to the fabric ingress |
 
-The lane defaults sit clear of teranode-bridge's `9143`/`9144` so both shims
-can share a host, and `8725` outbound matches the object plane's transaction
-class number.
+The delivery lanes use the canonical `9143`/`9144` shared with teranode-bridge:
+a landing site receives each object class once, on the same port, whichever
+bridge terminates it. Two bridges cannot bind these on one host, which is
+deliberate - it forecloses the wasteful two-slot / double-delivery topology. A
+site that runs both stacks delivers over ONE slot into a small local tee; see
+[docs/deliver-once.md](docs/deliver-once.md). `8725` outbound matches the
+object plane's transaction class number.
 
 ## Observability
 

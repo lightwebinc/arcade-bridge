@@ -2,7 +2,7 @@
 // Arcade v2 + merkle-service stack.
 //
 // It is the app-tier sibling of teranode-bridge, and deliberately NOT that
-// binary: teranode-bridge is the miner-tier landing shim (submitter role,
+// binary: teranode-bridge is the miner-tier landing bridge (submitter role,
 // blockchain-notification reverse path, miner-gated up-tunnel publish), while
 // an arcade operator is a plain delivery consumer — subtrees and blocks come
 // DOWN the tunnel, transactions go UP on the open class, and nothing here

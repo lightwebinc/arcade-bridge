@@ -6,7 +6,7 @@
 
 > Part of the [**BSV Layered Multicast**](https://github.com/lightwebinc/bsv-multicast) open-source project. See the main repository for the full architecture, design docs, and BRC specifications.
 
-A landing-tier shim that runs an **unmodified
+A landing-tier bridge that runs an **unmodified
 [Arcade v2](https://github.com/bsv-blockchain/arcade) +
 [merkle-service](https://github.com/bsv-blockchain/merkle-service) stack with a
 multicast delivery fabric as its transport.**
@@ -176,7 +176,7 @@ chart README for the three-service shape and scaling notes.
 
 The bridge deliberately does not link Arcade's or merkle-service's modules.
 The one contract it needs, two small JSON announcement messages, is reproduced
-from their wire shape and pinned by contract-fixture tests, so a small shim
+from their wire shape and pinned by contract-fixture tests, so a small bridge
 does not pull in another service's dependency tree.
 
 ## License

@@ -100,7 +100,7 @@ Load-bearing details:
   synchronous. Wrong side, wrong layer, wrong concurrency.
 - **arcade-bridge sources objects from teranode-bridge** (point merkle-service
   at teranode-bridge's retrieval plane, get arrival events from a tee on the
-  miner shim): couples the app tier's delivery to the miner shim at runtime
+  miner bridge): couples the app tier's delivery to the miner bridge at runtime
   (miner down means Arcade delivery stops) and bakes an Arcade-purposed client
   into the public miner binary. A tier-neutral tee gets identical deliver-once
   with none of the coupling.

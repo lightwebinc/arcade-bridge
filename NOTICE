@@ -3,7 +3,7 @@ Copyright 2026 Lightweb Inc. (https://lightweb.net)
 
 =========================================================================
 
-This software is a landing-tier shim that runs an unmodified Arcade and
+This software is a landing-tier bridge that runs an unmodified Arcade and
 merkle-service broadcaster stack with a multicast delivery fabric as its
 transport. It terminates subtree and block delivery lanes, caches each
 object, and announces it to merkle-service with a retrieval URL served by

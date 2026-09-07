@@ -28,23 +28,12 @@ the bytes from the announcing datahub across the network. Behind this bridge,
 the same objects are already pushed to the landing machine, so the fetch never
 leaves the box:
 
-```mermaid
-flowchart LR
-    F(["multicast<br/>fabric"])
-    subgraph AB["arcade-bridge"]
-        direction TB
-        L["subtree + block lanes<br/>BRC-143 / BRC-144"] --> C["cache"]
-        C --> AN["announce"]
-        C --> RP["retrieval plane"]
-    end
-    MS["merkle-service"]
-    AR["Arcade v2"]
-    CL(["clients"])
-    F -->|push| L
-    AN -->|"hash + dataHubUrl"| MS
-    MS -->|"fetch subtree / block"| RP
-    MS -->|"STUMP, BLOCK_PROCESSED"| AR
-    AR -->|"MINED + merkle path"| CL
+```text
+  fabric ══push══▶ arcade-bridge
+      lanes ─▶ cache ─┬─▶ announce ──▶ merkle-service   (hash, dataHubUrl)
+                      └─▶ retrieval ◀─ fetch ── merkle-service
+      merkle-service ─▶ STUMP / BLOCK_PROCESSED ─▶ Arcade
+      Arcade ─▶ MINED + merkle path ─▶ clients
 ```
 
 The announcements are merkle-service's own Kafka messages with `dataHubUrl`
@@ -61,24 +50,16 @@ Teranode-shaped `POST /txs` surface Arcade already speaks, and forwards one
 copy up the consumer tunnel into the fabric's open transaction ingress. The
 fabric fans it out to every miner-tier consumer:
 
-```mermaid
-flowchart LR
-    AR["Arcade<br/>propagation"]
-    subgraph AB["arcade-bridge facade"]
-        direction TB
-        FAC["parse,<br/>ensure extended format"] --> HY["recent cache<br/>+ asset fallback"]
-        HY --> UT["up-tunnel:<br/>one bare EF stream"]
-    end
-    FB(["fabric<br/>ingress"])
-    M1["miner A"]
-    M2["miner B"]
-    M3["miner N"]
-    AR -->|"POST /txs"| FAC
-    FAC -.->|"per-tx verdicts"| AR
-    UT -->|"one copy"| FB
-    FB --> M1
-    FB --> M2
-    FB --> M3
+```text
+  Arcade propagation
+      │ POST /txs                       ▲ per-tx verdicts
+      ▼                                 │ (Teranode failure-list)
+  arcade-bridge facade ────────────────┘
+      parse ─▶ ensure EF ─▶ hydrate (recent cache / asset fallback)
+      up-tunnel: one bare EF stream
+      │
+      ▼
+  fabric ingress ─▶ miner A, miner B, ... miner N   (one copy, fanned)
 ```
 
 The response contract is Teranode's own failure-list grammar, so Arcade's

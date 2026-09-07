@@ -43,20 +43,11 @@ failover path.
 Replication happens at the tunnel's far end, where it is free. A small
 stateless **lanefan** process on the landing host:
 
-```mermaid
-flowchart LR
-    E(["edge / fabric"])
-    subgraph H["landing host"]
-        direction TB
-        LF["lanefan<br/>wildcard :9143 / :9144"]
-        TB["teranode-bridge<br/>loopback :9153 / :9154"]
-        AB["arcade-bridge<br/>loopback :9163 / :9164"]
-        LF -->|"loopback copy"| TB
-        LF -->|"loopback copy"| AB
-    end
-    E -->|"one crossing per object"| LF
-    TB --> TN(["Teranode cluster"])
-    AB --> MS(["Arcade + merkle-service"])
+```text
+  edge / fabric ══ one crossing per object ══▶ lanefan   (landing host)
+                                    wildcard :9143 / :9144
+       ├─ loopback copy ─▶ teranode-bridge :9153/:9154 ─▶ Teranode cluster
+       └─ loopback copy ─▶ arcade-bridge   :9163/:9164 ─▶ Arcade + merkle
 ```
 
 lanefan terminates the one slot's canonical lanes with the public

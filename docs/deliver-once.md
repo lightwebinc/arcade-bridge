@@ -48,13 +48,13 @@ flowchart LR
     E(["edge / fabric"])
     subgraph H["landing host"]
         direction TB
-        LF["lanefan<br/>[::]:9143 / :9144"]
-        TB["teranode-bridge<br/>[::1]:9153 / :9154"]
-        AB["arcade-bridge<br/>[::1]:9163 / :9164"]
-        LF -->|loopback copy| TB
-        LF -->|loopback copy| AB
+        LF["lanefan<br/>wildcard :9143 / :9144"]
+        TB["teranode-bridge<br/>loopback :9153 / :9154"]
+        AB["arcade-bridge<br/>loopback :9163 / :9164"]
+        LF -->|"loopback copy"| TB
+        LF -->|"loopback copy"| AB
     end
-    E -->|one crossing per object| LF
+    E -->|"one crossing per object"| LF
     TB --> TN(["Teranode cluster"])
     AB --> MS(["Arcade + merkle-service"])
 ```

@@ -145,6 +145,17 @@ The same numbers appear as structured `log/slog` stats blocks every
 `-stats-every` (default 60s). `/readyz` reports ready once the lanes are bound
 and the retrieval plane is listening.
 
+## Helm chart
+
+A Kubernetes Helm chart is published from a dedicated chart repository:
+
+- Repository: [`lightwebinc/arcade-bridge-helm`](https://github.com/lightwebinc/arcade-bridge-helm)
+- OCI: `helm install bridge oci://ghcr.io/lightwebinc/charts/arcade-bridge`
+
+`config.advertise` and `config.kafka` are effectively required unless
+`config.mode=sink`; setting `config.edgeIngress` turns the facade on. See the
+chart README for the three-service shape and scaling notes.
+
 ## Layout
 
 ```

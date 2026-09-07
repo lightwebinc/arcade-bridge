@@ -17,14 +17,14 @@ This document records what is and isn't possible against go-chaintracks
 
 1. **The `Chaintracks` interface is read-only for headers.** It exposes
    `GetHeight`, `GetTip`, `GetHeaderByHeight`, `GetHeaderByHash`, `GetHeaders`,
-   `GetNetwork`, `Subscribe`, `SubscribeReorg` — no header-ingest method
+   `GetNetwork`, `Subscribe`, `SubscribeReorg`, with no header-ingest method
    (`chaintracks/interface.go`).
 
 2. **The `ChainManager` implementation does have ingest, as library calls.**
    `ChainManager.SetChainTip(ctx, branchHeaders)` is the real tip-advancer:
    it updates `byHeight`/`byHash`, sets the tip to the last header of the
    branch, prunes orphans, publishes the tip event to subscribers, and writes
-   header files. It **trusts the branch** — no PoW or linkage validation
+   header files. It **trusts the branch**: no PoW or linkage validation
    inside `SetChainTip` (`chainmanager/loader.go`).
    `ChainManager.AddHeader(header)` is index-only (stores by hash, does not
    advance the tip) and is not sufficient on its own
@@ -84,7 +84,7 @@ dependency; the embedded-library path above ships without it.
 
 On the **regtest** lab, Arcade **force-disables** its embedded chaintracks and
 the nLockTime/BIP113 finality gate (both are nil under regtest by design).
-So the feeder's value — a fabric-native tip and a working finality gate — is a
+So the feeder's value (a fabric-native tip and a working finality gate) is a
 **testnet/mainnet** concern; the regtest lab cannot validate Arcade *consuming*
 the feeder end to end. The feeder mechanism itself (a ChainManager tip
 advancing from fabric-delivered headers) is verifiable standalone, and the

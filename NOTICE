@@ -1,0 +1,77 @@
+arcade-bridge
+Copyright 2026 Lightweb Inc. (https://lightweb.net)
+
+=========================================================================
+
+This software is a landing-tier shim that runs an unmodified Arcade and
+merkle-service broadcaster stack with a multicast delivery fabric as its
+transport. It terminates subtree and block delivery lanes, caches each
+object, and announces it to merkle-service with a retrieval URL served by
+this software, so that pushed bytes reach the stack through its ordinary
+announce-fetch path. A propagation facade accepts Arcade's outbound
+transaction broadcasts, hydrates them to Extended Format, and forwards
+them to fabric ingress. Neither Arcade nor merkle-service is modified:
+no patched ingest, no additional RPC, and no change to validation.
+
+This product includes software developed at Lightweb Inc. and licensed
+under the Apache License, Version 2.0 (see LICENSE).
+
+=========================================================================
+Conceptual Attribution
+
+The IPv6 multicast transaction broadcast architecture from which this
+software draws inspiration was articulated by Dr. Craig S. Wright:
+
+  Multicast within Multicast: Anycast
+  https://singulargrit.substack.com/p/multicast-within-multicast-anycast
+  https://singulargrit.substack.com/
+
+=========================================================================
+Third-Party Standards
+
+This software transports objects conforming to published standards
+maintained by BSV Blockchain, and to companion specifications of the BSV
+multicast transaction distribution stack:
+
+  BRC-30: Transaction Extended Format (EF)
+  BSV Blockchain Standards Repository
+  https://github.com/bsv-blockchain/BRCs/
+
+  BRC-143: Subtree Data Push Frame
+  BRC-144: Block Push Frame
+  https://github.com/lightwebinc/bsv-multicast/
+
+=========================================================================
+Interoperability
+
+This software interoperates with Arcade and merkle-service over their
+published network interfaces only: Arcade submits transactions to the
+facade over the data hub HTTP contract, and merkle-service consumes
+Kafka announcement topics and fetches announced content over HTTP from
+the retrieval endpoint. It does not incorporate, link, or redistribute
+any Arcade or merkle-service source code. The message contracts it needs
+are reproduced from their wire definitions:
+
+  Arcade
+  https://github.com/bsv-blockchain/arcade
+
+  merkle-service
+  https://github.com/bsv-blockchain/merkle-service
+
+=========================================================================
+Third-Party Software
+
+This product includes third-party software, distributed under the terms
+of their respective licenses. Each dependency retains its own copyright;
+this notice does not modify those licenses.
+
+  github.com/lightwebinc/teranode-bridge      Apache License 2.0
+  github.com/lightwebinc/shard-common         Apache License 2.0
+  github.com/bsv-blockchain/go-sdk            Open BSV License Version 5
+  github.com/prometheus/client_golang         Apache License 2.0
+  github.com/twmb/franz-go                    BSD 3-Clause License
+  google.golang.org/protobuf                  BSD 3-Clause License
+  github.com/klauspost/compress               BSD 3-Clause License
+  github.com/pierrec/lz4/v4                   BSD 3-Clause License
+
+=========================================================================

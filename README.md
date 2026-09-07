@@ -55,8 +55,7 @@ fabric fans it out to every miner-tier consumer:
       │ POST /txs                      ▲ per-tx verdicts
       ▼                                │ (Teranode failure-list)
   arcade-bridge facade ────────────────┘
-      parse ─▶ ensure EF ─▶ hydrate (re
-cent cache / asset fallback)
+      parse ─▶ ensure EF ─▶ hydrate (recent cache / asset fallback)
       up-tunnel: one bare EF stream
       │
       ▼

@@ -51,6 +51,9 @@ import (
 	"github.com/lightwebinc/arcade-bridge/uptunnel"
 )
 
+// Version is stamped at build time via -ldflags "-X main.Version=...".
+var Version = "dev"
+
 func main() {
 	var (
 		// Canonical tunnel-facing delivery-lane ports, shared with teranode-bridge:
@@ -224,7 +227,7 @@ func main() {
 		}()
 	}
 
-	log.Info("arcade-bridge up", "mode", *mode, "subtree", *subtreeListen, "block", *blockListen,
+	log.Info("arcade-bridge up", "version", Version, "mode", *mode, "subtree", *subtreeListen, "block", *blockListen,
 		"retrieval", *retrievalListen, "announce_base", baseURL, "facade", facadeState(fac, *facadeListen))
 	<-ctx.Done()
 	wg.Wait()

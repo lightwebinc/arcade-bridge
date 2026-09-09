@@ -26,7 +26,12 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version-file: go.mod
+          # Pinned to the BUILDER toolchain, not the go.mod floor. The floor is
+          # held at 1.26.2 fleet-wide on purpose; the shipped stdlib comes from
+          # the Dockerfile builder (golang:1.27-alpine). go-version-file: go.mod
+          # reads the floor, so it exercised a stdlib we never ship -- which
+          # surfaced in vuln.yml as 10 stdlib advisories fixed in 1.26.x.
+          go-version: "1.27.1"
 
       - name: govulncheck
         # The workable govulncheck pin INVERTS across toolchains: v1.1.4

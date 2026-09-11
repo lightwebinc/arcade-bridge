@@ -5,7 +5,7 @@ go 1.26.2
 require (
 	github.com/bsv-blockchain/go-sdk v1.4.1
 	github.com/lightwebinc/shard-common v0.19.2
-	github.com/lightwebinc/teranode-bridge v0.8.0
+	github.com/lightwebinc/teranode-bridge v0.9.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/twmb/franz-go v1.21.6
 )

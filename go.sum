@@ -23,8 +23,8 @@ github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/lightwebinc/shard-common v0.19.2 h1:SevLAd2WD7UMZbNYT0QYnwrl4MMIWUK/wUnGFZWfQrw=
 github.com/lightwebinc/shard-common v0.19.2/go.mod h1:y6mYFNiPNCRERt1QpqUAnpq0Hr8mlFGJ+V5GipaGttw=
-github.com/lightwebinc/teranode-bridge v0.8.0 h1:JAF47qC9VopT2C6Uh2lShLqnVBcjpJ3DAZastbbYPzc=
-github.com/lightwebinc/teranode-bridge v0.8.0/go.mod h1:QF/AqS2Lgwstq0FBRvxZO06sZb06kWBO9X6ZTUNB0KI=
+github.com/lightwebinc/teranode-bridge v0.9.0 h1:6DJSu/lvxR7u4f0eVRXQAqPYcueCC2sdiViBjTVOtQE=
+github.com/lightwebinc/teranode-bridge v0.9.0/go.mod h1:QF/AqS2Lgwstq0FBRvxZO06sZb06kWBO9X6ZTUNB0KI=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/pierrec/lz4/v4 v4.1.26 h1:GrpZw1gZttORinvzBdXPUXATeqlJjqUG/D87TKMnhjY=

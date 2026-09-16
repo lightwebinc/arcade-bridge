@@ -92,8 +92,8 @@ listening. Prometheus series:
 | --- | --- | --- |
 | `arcade_bridge_lane_objects_total` | `lane` | objects received per delivery lane |
 | `arcade_bridge_lane_bytes_total` | `lane` | bytes received per delivery lane |
-| `arcade_bridge_lane_errors_total` | `lane` | stream errors (connection dropped, malformed object) |
-| `arcade_bridge_lane_objects_rejected_total` | `lane` | objects rejected by a lane handler |
+| `arcade_bridge_lane_errors_total` | `lane` | per-object handler failures (the announcement did not produce, or the frame could not be parsed for its inline block fields); the connection is kept and the object stays cached but un-announced. Framing faults are not counted here: they drop the connection and appear only in the log |
+| `arcade_bridge_lane_objects_rejected_total` | `lane` | objects refused by a lane handler on format policy; no arcade-bridge lane currently enforces one, so a non-zero value is unexpected |
 | `arcade_bridge_cache_entries` / `_cache_bytes` | | current cache occupancy |
 | `arcade_bridge_announce_total` | `class` | announcements published to merkle-service |
 | `arcade_bridge_announce_failures_total` | | failed announcement publishes |

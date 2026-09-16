@@ -153,8 +153,8 @@ header, exactly as the chain identifies it.
 
 | Failure | Behaviour |
 | --- | --- |
-| Kafka unreachable at startup | warn and continue; produces surface per announcement and are retried by the lane redial path |
-| Kafka down mid-run | the announcement fails, the lane handler returns the error, the edge redials and redelivers |
+| Kafka unreachable at startup | warn and continue; the first announcement that cannot be produced surfaces as a handler error |
+| Kafka down mid-run | the announcement fails and is counted (`announce_failures_total`, lane `errors`); the connection is kept. The object stays cached but merkle-service is never told of it, and a redelivery is treated as a duplicate and not re-announced, so it is announced again only after it ages out of the cache and arrives once more |
 | retrieval fetch for an expired object | honest 404, never an empty 200; merkle-service classifies by announcement age |
 | up-tunnel down | facade answers a bodyless 503 (infrastructure, not verdict); Arcade requeues |
 | malformed transaction in a batch | one `TX_INVALID` line, remaining stream abandoned (self-delimiting streams cannot resync); Arcade narrows the chunk and resubmits |
@@ -171,6 +171,6 @@ uptunnel/            long-lived bare EF stream with address failover
 
 Imported from teranode-bridge: `lanes` (per-class TCP listeners over bare
 object streams), `cache` (hash-keyed, TTL'd, copy-on-put), `retrieval` (the
-asset-style pull surface), `hashid`, `tnwire`, `encode`. Those packages are
+asset-style pull surface), `hashid`, `tnwire`. Those packages are
 the documented extension seams of that repository; this bridge is a consumer
 of them, not a fork.

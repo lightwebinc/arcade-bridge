@@ -160,11 +160,14 @@ chart README for the three-service shape and scaling notes.
 
 ```
 .
-├── cmd/arcade-bridge/   # entrypoint: flags, wiring, per-class lane handlers
+├── cmd/arcade-bridge/   # entrypoint: flags, wiring, per-class lane handlers, collector
 ├── msannounce/          # merkle-service announcement messages + Kafka producer
 ├── facade/              # Teranode-shaped POST /txs surface + EF hydration
 ├── uptunnel/            # bare EF stream to the fabric ingress, with failover
-└── .github/workflows/   # CI
+├── docs/                # architecture, configuration, deliver-once, header-feeder
+├── Dockerfile
+├── Makefile
+└── .github/workflows/{ci,codeql,image-publish,release,vuln}.yml
 ```
 
 ## Dependencies

@@ -32,13 +32,13 @@ quietly.
 ## The co-located case (design, build when first needed)
 
 When a single site runs both stacks, do **not** provision two consumer slots.
-Provision **one** slot whose subtree and block SDA sets enumerate the site's
-tunnel exits under `-sda-delivery=failover`. The edge sends the whole object
-stream to the first healthy tunnel inner, so each object crosses the DX once
-(the delivery pool round-robins or fails over *within* one consumer and never
-broadcasts). This is the same posture as the drilled redundant-landing pair:
-edge-decided from TCP evidence, with the broker kept out of the runtime
-failover path.
+Provision **one** consumer whose subtree and block delivery address sets
+enumerate the site's tunnel exits, with the delivery side configured to fail
+over rather than spread. The edge sends the whole object stream to the first
+healthy tunnel inner, so each object crosses the interconnect once: delivery
+round-robins or fails over *within* one consumer and never broadcasts. The
+decision is made at the edge from TCP evidence, which keeps the control plane
+out of the runtime failover path.
 
 Replication happens at the tunnel's far end, where it is free. A small
 stateless **lanefan** process on the landing host:
@@ -83,17 +83,16 @@ Load-bearing details:
   bridge-to-bridge chain, so it brand-couples an Arcade operator to nothing on
   the miner side and puts no binary in another's availability path. It reuses
   `objfmt.Reader` and `lanes.Lane` verbatim; the fan-out writer is new code,
-  shaped like the delivery pool but not importing it (that pool lives in a
-  private repository).
+  shaped like the edge delivery pool but independent of it.
 
 ## Rejected alternatives
 
-- **A control-plane co-delivery group** (the broker delivers once and fans to
+- **A control-plane co-delivery group** (deliver once upstream, then fan to
   several local overlay endpoints): a point-to-point WireGuard tunnel cannot
-  replicate and the delivery pool has no within-tunnel broadcast primitive, so
+  replicate and the delivery side has no within-tunnel broadcast primitive, so
   a landing-side fan is required regardless. A group buys nothing for
-  deliver-once and regresses the drilled, fail-functional, edge-decided
-  failover by putting broker membership back in the runtime path.
+  deliver-once and regresses the fail-functional, edge-decided failover by
+  putting control-plane membership back in the runtime path.
 - **Edge-side frame fan-out** (`egress.MultiSender` / `txegress.MultiSink`):
   fans on the edge *before* the tunnel, which is two crossings; operates on
   framed objects rather than the bare objects that cross the tunnel; and is

@@ -4,8 +4,8 @@ Arcade tracks the chain tip through an embedded
 [go-chaintracks](https://github.com/bsv-blockchain/go-chaintracks) instance,
 fed over libp2p / a block-headers source. That is the one part of the Arcade
 stack that does not ride the multicast fabric. The fabric already carries a
-**BRC-135 header lane** (bare 80-byte headers; the `overlay-headers` consumer
-and txmint's `headersink` already receive and verify against it), so a feeder
+**BRC-135 header lane** (bare 80-byte headers, already received and verified
+against downstream today), so a feeder
 that pushed those headers into chaintracks would close the last non-fabric
 dependency and make the tip (and the nLockTime finality gate that depends on
 it) fabric-native.
@@ -62,15 +62,15 @@ BRC-135 header lane ─▶ feeder
   header, not the height. The feeder derives height by linking `prevHash` to
   the ChainManager's known chain (`GetHeaderByHash(prevHash).Height + 1`), and
   bootstraps the first header from a checkpoint or a one-time
-  `SyncFromRemoteTip` before switching to the fabric feed. txmint's
-  `headersink` already solves the same problem (it re-anchors the header chain
-  through the node after a lane gap) and is the reference implementation for
-  the lane reader + re-anchor logic.
+  `SyncFromRemoteTip` before switching to the fabric feed. An existing lane
+  reader already solves the same problem by re-anchoring the header chain
+  through the node after a lane gap, which is the shape to follow for the lane
+  reader and the re-anchor logic.
 - **Delivery side.** Either the feeder joins the header lane directly (it is a
   consumer SDA like any other), or arcade-bridge gains a `-header-listen` lane
   that receives BRC-135 headers and hands them to the feeder. The lane itself
-  is already proven on the fabric (the `overlay-headers` consumer is live and
-  headersink verifies BUMPs against it).
+  is already proven on the fabric: consumers receive it today and verify BUMPs
+  against it.
 
 ## Alternative (cleaner long-term, needs upstream)
 

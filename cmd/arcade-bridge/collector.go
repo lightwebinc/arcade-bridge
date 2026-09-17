@@ -19,21 +19,33 @@ type collector struct {
 	producer *msannounce.Producer
 	fac      *facade.Server
 	up       *uptunnel.Client
+	annQ     *announceQueue
 
 	laneObjects, laneBytes, laneErrors            *prometheus.Desc
 	laneDropped, laneRejected                     *prometheus.Desc
 	cacheEntries, cacheBytes                      *prometheus.Desc
 	announceTotal, announceFailures               *prometheus.Desc
+	annQDepth, annQCapacity                       *prometheus.Desc
+	annQDone, annQFailed, annQDropped             *prometheus.Desc
 	facadeTxs, facadeBatches                      *prometheus.Desc
 	uptunnelSent, uptunnelBytes, uptunnelFailures *prometheus.Desc
 }
 
-func newCollector(laneSet []*lanes.Lane, objects *cache.Cache, producer *msannounce.Producer, fac *facade.Server, up *uptunnel.Client) *collector {
+func newCollector(laneSet []*lanes.Lane, objects *cache.Cache, producer *msannounce.Producer, fac *facade.Server, up *uptunnel.Client, annQ *announceQueue) *collector {
 	lane := []string{"lane"}
 	class := []string{"class"}
 	result := []string{"result"}
 	return &collector{
-		laneSet: laneSet, objects: objects, producer: producer, fac: fac, up: up,
+		laneSet: laneSet, objects: objects, producer: producer, fac: fac, up: up, annQ: annQ,
+		// The announce queue is the seam between "we accepted the object" and
+		// "merkle-service was told". Depth climbing means the downstream is
+		// slower than the lane; dropped>0 means objects are cached and
+		// retrievable but UNADVERTISED, which nothing else here would show.
+		annQDepth:        prometheus.NewDesc("arcade_bridge_announce_queue_depth", "Announcements waiting to be produced.", nil, nil),
+		annQCapacity:     prometheus.NewDesc("arcade_bridge_announce_queue_capacity", "Announce queue depth ceiling.", nil, nil),
+		annQDone:         prometheus.NewDesc("arcade_bridge_announce_queue_done_total", "Announcements produced from the queue.", nil, nil),
+		annQFailed:       prometheus.NewDesc("arcade_bridge_announce_queue_failed_total", "Announcements that errored; the object stays unannounced and a redelivery retries.", nil, nil),
+		annQDropped:      prometheus.NewDesc("arcade_bridge_announce_queue_dropped_total", "Announcements dropped because the queue was full; object cached but NOT advertised.", nil, nil),
 		facadeTxs:        prometheus.NewDesc("arcade_bridge_facade_txs_total", "Facade transaction outcomes.", result, nil),
 		facadeBatches:    prometheus.NewDesc("arcade_bridge_facade_batches_total", "Facade submit batches received.", nil, nil),
 		uptunnelSent:     prometheus.NewDesc("arcade_bridge_uptunnel_sent_total", "Transactions streamed up-tunnel.", nil, nil),
@@ -52,6 +64,11 @@ func newCollector(laneSet []*lanes.Lane, objects *cache.Cache, producer *msannou
 }
 
 func (c *collector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.annQDepth
+	ch <- c.annQCapacity
+	ch <- c.annQDone
+	ch <- c.annQFailed
+	ch <- c.annQDropped
 	ch <- c.laneObjects
 	ch <- c.laneBytes
 	ch <- c.laneErrors
@@ -69,6 +86,14 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *collector) Collect(ch chan<- prometheus.Metric) {
+	if c.annQ != nil {
+		_, done, failed, dropped, depth, capacity := c.annQ.stats()
+		ch <- prometheus.MustNewConstMetric(c.annQDepth, prometheus.GaugeValue, float64(depth))
+		ch <- prometheus.MustNewConstMetric(c.annQCapacity, prometheus.GaugeValue, float64(capacity))
+		ch <- prometheus.MustNewConstMetric(c.annQDone, prometheus.CounterValue, float64(done))
+		ch <- prometheus.MustNewConstMetric(c.annQFailed, prometheus.CounterValue, float64(failed))
+		ch <- prometheus.MustNewConstMetric(c.annQDropped, prometheus.CounterValue, float64(dropped))
+	}
 	for _, l := range c.laneSet {
 		s := l.Stats()
 		ch <- prometheus.MustNewConstMetric(c.laneObjects, prometheus.CounterValue, float64(s.Objects), s.Name)

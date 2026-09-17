@@ -78,8 +78,11 @@ func main() {
 		clientName   = flag.String("client-name", "arcade-bridge", "clientName stamped on announcements")
 
 		cacheBytes = flag.Int64("cache-bytes", 1<<30, "object cache ceiling in bytes")
-		cacheTTL   = flag.Duration("cache-ttl", 30*time.Minute, "how long a pushed object stays fetchable. Must comfortably exceed merkle-service's worst-case Kafka consumer lag: a fetch after expiry is an honest 404 that its stale-announcement grace then has to excuse")
-		maxObject  = flag.Int("max-object", 0, "per-object size ceiling (0 = codec default)")
+
+		announceQueueDepth = flag.Int("announce-queue", 4096, "pending merkle-service announcements held off the lane read loop. The lane calls Handle inline, so announcing synchronously stops the socket draining and the EDGE sheds the lane (measured: 6,016 shed vs 4,145 delivered). 0 disables the queue and announces inline — diagnostic only")
+		announceWorkers    = flag.Int("announce-workers", 4, "workers draining the announce queue. >1 because a single Kafka produce is latency-bound, not CPU-bound; merkle-service dedups by hash so ordering across objects is not load-bearing")
+		cacheTTL           = flag.Duration("cache-ttl", 30*time.Minute, "how long a pushed object stays fetchable. Must comfortably exceed merkle-service's worst-case Kafka consumer lag: a fetch after expiry is an honest 404 that its stale-announcement grace then has to excuse")
+		maxObject          = flag.Int("max-object", 0, "per-object size ceiling (0 = codec default)")
 
 		facadeListen = flag.String("facade-listen", "[::]:9166", "propagation facade listen address (POST /txs, /tx, GET /health); started only when -edge-ingress is set")
 		edgeIngress  = flag.String("edge-ingress", "", "up-tunnel tx submit host(s), reachable only through the tunnel; comma-separated failover list — with a dual-homed tunnel, the side-A and side-B slot inners")
@@ -145,19 +148,26 @@ func main() {
 		cancel()
 	}
 
+	// Declared here because the lane handlers below close over it; ASSIGNED
+	// once the process context exists, and always before any lane Serves, so
+	// no object can be handled before there is a drain for it. Nil when
+	// disabled (-announce-queue=0) or in sink mode: the handlers then keep
+	// their inline path.
+	var annQ *announceQueue
+
 	laneSet := []*lanes.Lane{
 		{
 			Name: "subtree", Class: objfmt.ClassSubtree, Addr: *subtreeListen, Log: log, MaxObject: *maxObject,
 			SizeHistogram: true,
 			Handle: func(ctx context.Context, obj []byte) error {
-				return handleSubtree(ctx, obj, objects, announced, ann, log)
+				return handleSubtree(ctx, obj, objects, announced, ann, annQ, log)
 			},
 		},
 		{
 			Name: "block", Class: objfmt.ClassBlock, Addr: *blockListen, Log: log, MaxObject: *maxObject,
 			SizeHistogram: true,
 			Handle: func(ctx context.Context, obj []byte) error {
-				return handleBlock(ctx, obj, objects, announced, ann, log)
+				return handleBlock(ctx, obj, objects, announced, ann, annQ, log)
 			},
 		},
 	}
@@ -181,7 +191,16 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	prometheus.MustRegister(newCollector(laneSet, objects, producer, fac, up))
+	if ann != nil && *announceQueueDepth > 0 {
+		annQ = newAnnounceQueue(ctx, *announceQueueDepth, *announceWorkers, log)
+		// Closed BEFORE the producer (defer order is LIFO and the producer's
+		// Close was deferred earlier), so in-flight announcements still have a
+		// live Kafka client to finish on rather than failing at shutdown.
+		defer annQ.close()
+		log.Info("announce queue armed", "depth", *announceQueueDepth, "workers", *announceWorkers)
+	}
+
+	prometheus.MustRegister(newCollector(laneSet, objects, producer, fac, up, annQ))
 
 	var wg sync.WaitGroup
 	for _, l := range laneSet {
@@ -264,7 +283,7 @@ type announcer interface {
 // it again. Gating on the cache instead would read that redelivery as a
 // duplicate and leave merkle-service permanently unaware of an object we hold.
 func handleSubtree(ctx context.Context, obj []byte, objects *cache.Cache, announced *registry.Registry,
-	producer announcer, log *slog.Logger) error {
+	producer announcer, q *announceQueue, log *slog.Logger) error {
 
 	if len(obj) < objfmt.SubtreeHeaderSize {
 		return fmt.Errorf("subtree frame too short: %d bytes", len(obj))
@@ -284,10 +303,29 @@ func handleSubtree(ctx context.Context, obj []byte, objects *cache.Cache, announ
 		return nil
 	}
 	log.Info("subtree received", "root", root.Display(), "bytes", len(obj))
-	if producer != nil {
-		if err := producer.Subtree(ctx, root.Display()); err != nil {
-			return err
-		}
+	if producer == nil {
+		announced.Mark(registry.Key(root), registry.Delivered)
+		return nil
+	}
+	// The object is CACHED above and therefore already retrievable; only the
+	// announce is deferred, so merkle-service can never be told about an object
+	// we cannot serve. Returning here is what lets the lane read the next
+	// object instead of waiting on Kafka — see announceQueue.
+	if q != nil {
+		q.submit(announceJob{
+			what: "subtree " + root.Display(),
+			run: func(c context.Context) error {
+				if err := producer.Subtree(c, root.Display()); err != nil {
+					return err
+				}
+				announced.Mark(registry.Key(root), registry.Delivered)
+				return nil
+			},
+		})
+		return nil
+	}
+	if err := producer.Subtree(ctx, root.Display()); err != nil {
+		return err
 	}
 	announced.Mark(registry.Key(root), registry.Delivered)
 	return nil
@@ -301,7 +339,7 @@ func handleSubtree(ctx context.Context, obj []byte, objects *cache.Cache, announ
 // Announce-failure handling is handleSubtree's: cached either way, recorded as
 // announced only on success.
 func handleBlock(ctx context.Context, obj []byte, objects *cache.Cache, announced *registry.Registry,
-	producer announcer, log *slog.Logger) error {
+	producer announcer, q *announceQueue, log *slog.Logger) error {
 
 	if len(obj) < objfmt.BlockPrefixSize {
 		return fmt.Errorf("block frame too short: %d bytes", len(obj))
@@ -327,6 +365,19 @@ func handleBlock(ctx context.Context, obj []byte, objects *cache.Cache, announce
 		return fmt.Errorf("block %s: %w", id.Display(), err)
 	}
 	log.Info("block received", "hash", id.Display(), "height", blk.Height, "bytes", len(obj))
+	if q != nil {
+		q.submit(announceJob{
+			what: "block " + id.Display(),
+			run: func(c context.Context) error {
+				if err := producer.Block(c, id.Display(), blk.Height, blk.Header, blk.Coinbase); err != nil {
+					return err
+				}
+				announced.Mark(registry.Key(id), registry.Delivered)
+				return nil
+			},
+		})
+		return nil
+	}
 	if err := producer.Block(ctx, id.Display(), blk.Height, blk.Header, blk.Coinbase); err != nil {
 		return err
 	}

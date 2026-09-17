@@ -174,6 +174,8 @@ header, exactly as the chain identifies it.
 ```
 cmd/arcade-bridge/   wiring: flags, lane handlers, collector, stats loop
 msannounce/          SubtreeMessage / BlockMessage + synchronous Kafka producer
+                     (called from the announce QUEUE, never from a lane handler:
+                      the lane reads inline, so announcing there stalls the socket)
 facade/              HTTP surface, verdict grammar, EF hydration, ParentSource
 uptunnel/            long-lived bare EF stream with address failover
 ```

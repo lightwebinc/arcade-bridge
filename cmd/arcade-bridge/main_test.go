@@ -96,7 +96,7 @@ func TestHandleSubtreeReannouncesAfterFailedAnnounce(t *testing.T) {
 	ann := &stubAnnouncer{err: boom}
 
 	// 1. First delivery: the announce fails and the handler says so.
-	if err := handleSubtree(context.Background(), obj, objects, announced, ann, log); !errors.Is(err, boom) {
+	if err := handleSubtree(context.Background(), obj, objects, announced, ann, nil, log); !errors.Is(err, boom) {
 		t.Fatalf("failed announce must surface to the lane: %v", err)
 	}
 	if len(ann.subtrees) != 1 {
@@ -111,7 +111,7 @@ func TestHandleSubtreeReannouncesAfterFailedAnnounce(t *testing.T) {
 
 	// 2. Redelivery: announced again, because it was never recorded.
 	ann.err = nil
-	if err := handleSubtree(context.Background(), obj, objects, announced, ann, log); err != nil {
+	if err := handleSubtree(context.Background(), obj, objects, announced, ann, nil, log); err != nil {
 		t.Fatalf("redelivery after a failed announce must succeed: %v", err)
 	}
 	if len(ann.subtrees) != 2 {
@@ -119,7 +119,7 @@ func TestHandleSubtreeReannouncesAfterFailedAnnounce(t *testing.T) {
 	}
 
 	// 3. Redelivery after SUCCESS is still suppressed, exactly as before.
-	if err := handleSubtree(context.Background(), obj, objects, announced, ann, log); err != nil {
+	if err := handleSubtree(context.Background(), obj, objects, announced, ann, nil, log); err != nil {
 		t.Fatalf("duplicate redelivery must not error: %v", err)
 	}
 	if len(ann.subtrees) != 2 {
@@ -135,7 +135,7 @@ func TestHandleBlockReannouncesAfterFailedAnnounce(t *testing.T) {
 	boom := errors.New("kafka down")
 	ann := &stubAnnouncer{err: boom}
 
-	if err := handleBlock(context.Background(), obj, objects, announced, ann, log); !errors.Is(err, boom) {
+	if err := handleBlock(context.Background(), obj, objects, announced, ann, nil, log); !errors.Is(err, boom) {
 		t.Fatalf("failed announce must surface to the lane: %v", err)
 	}
 	if len(ann.blocks) != 1 {
@@ -143,14 +143,14 @@ func TestHandleBlockReannouncesAfterFailedAnnounce(t *testing.T) {
 	}
 
 	ann.err = nil
-	if err := handleBlock(context.Background(), obj, objects, announced, ann, log); err != nil {
+	if err := handleBlock(context.Background(), obj, objects, announced, ann, nil, log); err != nil {
 		t.Fatalf("redelivery after a failed announce must succeed: %v", err)
 	}
 	if len(ann.blocks) != 2 {
 		t.Fatalf("redelivery must re-announce, got %d announces", len(ann.blocks))
 	}
 
-	if err := handleBlock(context.Background(), obj, objects, announced, ann, log); err != nil {
+	if err := handleBlock(context.Background(), obj, objects, announced, ann, nil, log); err != nil {
 		t.Fatalf("duplicate redelivery must not error: %v", err)
 	}
 	if len(ann.blocks) != 2 {
@@ -164,7 +164,7 @@ func TestHandleDistinctObjectsEachAnnounce(t *testing.T) {
 	objects, announced, log := testFixtures(t)
 	ann := &stubAnnouncer{}
 	for _, fill := range []byte{0x01, 0x02, 0x03} {
-		if err := handleSubtree(context.Background(), subtreeFrame(t, fill), objects, announced, ann, log); err != nil {
+		if err := handleSubtree(context.Background(), subtreeFrame(t, fill), objects, announced, ann, nil, log); err != nil {
 			t.Fatalf("fill %#x: %v", fill, err)
 		}
 	}
@@ -179,7 +179,7 @@ func TestHandleSubtreeSinkMode(t *testing.T) {
 	objects, announced, log := testFixtures(t)
 	obj := subtreeFrame(t, 0x22)
 	for i := 0; i < 2; i++ {
-		if err := handleSubtree(context.Background(), obj, objects, announced, nil, log); err != nil {
+		if err := handleSubtree(context.Background(), obj, objects, announced, nil, nil, log); err != nil {
 			t.Fatalf("sink mode must not error: %v", err)
 		}
 	}

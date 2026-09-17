@@ -20,7 +20,7 @@ import (
 func gather(t *testing.T, laneSet []*lanes.Lane, objects *cache.Cache) map[string]*dto.MetricFamily {
 	t.Helper()
 	reg := prometheus.NewRegistry()
-	reg.MustRegister(newCollector(laneSet, objects, nil, nil, nil))
+	reg.MustRegister(newCollector(laneSet, objects, nil, nil, nil, nil))
 	mfs, err := reg.Gather()
 	if err != nil {
 		t.Fatalf("gather: %v", err)

@@ -36,6 +36,29 @@ redial.
 | `-retrieval-listen` | `[::]:9165` | retrieval plane listen address |
 | `-api-prefix` | `/api/v1` | path prefix; must match what is announced |
 
+## Announce queue
+
+| Flag | Default | |
+| --- | --- | --- |
+| `-announce-queue` | `4096` | pending announcements held off the lane read loop; `0` announces inline (diagnostic only) |
+| `-announce-workers` | `4` | workers draining that queue |
+
+The delivery lanes call their handler INLINE in the per-connection read loop, so
+whatever the handler does is time the socket is not being read. Announcing to
+merkle-service synchronously therefore turned Kafka latency into TCP
+backpressure, and the edge — not this process — paid for it: measured on devnet
+2026-09-17, the arcade-us consumer had 6,016 objects shed by its edge against
+4,145 delivered, because this reader was too slow.
+
+Objects are cached BEFORE the announce is queued, so the retrieval plane can
+always serve what merkle-service is about to be told about. Only the announce
+is deferred.
+
+Watch `arcade_bridge_announce_queue_depth` against `_capacity`: a depth that
+climbs means merkle-service is slower than the lane. `_dropped_total` above zero
+means the queue filled and those objects are cached and retrievable but were
+never advertised — raise `-announce-queue`, add workers, or fix the downstream.
+
 Size `-cache-ttl` to comfortably exceed merkle-service's worst-case Kafka
 consumer lag: a fetch after expiry is an honest 404 that its
 stale-announcement grace then has to excuse.

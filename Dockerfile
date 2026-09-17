@@ -30,6 +30,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 FROM gcr.io/distroless/static:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7
 USER nonroot:nonroot
 COPY --from=builder /out/ /usr/local/bin/
-# subtree / block delivery lanes, the retrieval plane, then the facade.
-EXPOSE 9143 9144 9165 9166
+# subtree / block delivery lanes, the retrieval plane, the facade, then the
+# metrics and health listener (-metrics-addr, which also serves /healthz, /readyz).
+EXPOSE 9143 9144 9165 9166 9167
 ENTRYPOINT ["/usr/local/bin/arcade-bridge"]

@@ -172,7 +172,7 @@ chart README for the three-service shape and scaling notes.
 
 ## Dependencies
 
-- [`github.com/lightwebinc/teranode-bridge`](https://github.com/lightwebinc/teranode-bridge): the shared landing-tier packages (`lanes`, `cache`, `retrieval`, `hashid`, `tnwire`)
+- [`github.com/lightwebinc/teranode-bridge`](https://github.com/lightwebinc/teranode-bridge): the shared landing-tier packages (`lanes`, `cache`, `registry`, `retrieval`, `hashid`, `tnwire`)
 - [`github.com/lightwebinc/shard-common`](https://github.com/lightwebinc/shard-common): `objfmt`, the push object-frame codecs
 - [`github.com/bsv-blockchain/go-sdk`](https://github.com/bsv-blockchain/go-sdk): transaction parsing and extended-format serialization
 - [`github.com/twmb/franz-go`](https://github.com/twmb/franz-go): Kafka producer

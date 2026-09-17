@@ -20,11 +20,12 @@ type collector struct {
 	fac      *facade.Server
 	up       *uptunnel.Client
 
-	laneObjects, laneBytes, laneErrors, laneRejected *prometheus.Desc
-	cacheEntries, cacheBytes                         *prometheus.Desc
-	announceTotal, announceFailures                  *prometheus.Desc
-	facadeTxs, facadeBatches                         *prometheus.Desc
-	uptunnelSent, uptunnelBytes, uptunnelFailures    *prometheus.Desc
+	laneObjects, laneBytes, laneErrors            *prometheus.Desc
+	laneDropped, laneRejected                     *prometheus.Desc
+	cacheEntries, cacheBytes                      *prometheus.Desc
+	announceTotal, announceFailures               *prometheus.Desc
+	facadeTxs, facadeBatches                      *prometheus.Desc
+	uptunnelSent, uptunnelBytes, uptunnelFailures *prometheus.Desc
 }
 
 func newCollector(laneSet []*lanes.Lane, objects *cache.Cache, producer *msannounce.Producer, fac *facade.Server, up *uptunnel.Client) *collector {
@@ -40,8 +41,9 @@ func newCollector(laneSet []*lanes.Lane, objects *cache.Cache, producer *msannou
 		uptunnelFailures: prometheus.NewDesc("arcade_bridge_uptunnel_failures_total", "Up-tunnel write/dial failures.", nil, nil),
 		laneObjects:      prometheus.NewDesc("arcade_bridge_lane_objects_total", "Objects received per delivery lane.", lane, nil),
 		laneBytes:        prometheus.NewDesc("arcade_bridge_lane_bytes_total", "Bytes received per delivery lane.", lane, nil),
-		laneErrors:       prometheus.NewDesc("arcade_bridge_lane_errors_total", "Stream errors per delivery lane.", lane, nil),
-		laneRejected:     prometheus.NewDesc("arcade_bridge_lane_objects_rejected_total", "Objects rejected per delivery lane.", lane, nil),
+		laneErrors:       prometheus.NewDesc("arcade_bridge_lane_errors_total", "Objects whose lane handler failed: the announcement did not produce, or the frame could not be parsed for its inline block fields. The object stays cached and the connection is kept; it is announced again on the next redelivery. Framing faults are NOT counted here - see lane_connections_dropped_total.", lane, nil),
+		laneDropped:      prometheus.NewDesc("arcade_bridge_lane_connections_dropped_total", "Connections dropped on a framing fault. Bare streams have no resync point, so every byte after a codec fault - or an object over the -max-object ceiling - is suspect and the connection must go.", lane, nil),
+		laneRejected:     prometheus.NewDesc("arcade_bridge_lane_objects_rejected_total", "Well-framed objects refused on lane format policy. No arcade-bridge lane enforces one today, so a non-zero value is unexpected; it is exported for parity with teranode-bridge and so a future policy needs no dashboard change.", lane, nil),
 		cacheEntries:     prometheus.NewDesc("arcade_bridge_cache_entries", "Objects currently cached.", nil, nil),
 		cacheBytes:       prometheus.NewDesc("arcade_bridge_cache_bytes", "Bytes currently cached.", nil, nil),
 		announceTotal:    prometheus.NewDesc("arcade_bridge_announce_total", "Announcements published to merkle-service.", class, nil),
@@ -53,6 +55,7 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.laneObjects
 	ch <- c.laneBytes
 	ch <- c.laneErrors
+	ch <- c.laneDropped
 	ch <- c.laneRejected
 	ch <- c.cacheEntries
 	ch <- c.cacheBytes
@@ -71,6 +74,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(c.laneObjects, prometheus.CounterValue, float64(s.Objects), s.Name)
 		ch <- prometheus.MustNewConstMetric(c.laneBytes, prometheus.CounterValue, float64(s.Bytes), s.Name)
 		ch <- prometheus.MustNewConstMetric(c.laneErrors, prometheus.CounterValue, float64(s.Errors), s.Name)
+		ch <- prometheus.MustNewConstMetric(c.laneDropped, prometheus.CounterValue, float64(s.Dropped), s.Name)
 		ch <- prometheus.MustNewConstMetric(c.laneRejected, prometheus.CounterValue, float64(s.Rejected), s.Name)
 	}
 	cs := c.objects.Stats()

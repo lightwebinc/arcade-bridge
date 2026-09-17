@@ -41,6 +41,7 @@ import (
 	"github.com/lightwebinc/teranode-bridge/cache"
 	"github.com/lightwebinc/teranode-bridge/hashid"
 	"github.com/lightwebinc/teranode-bridge/lanes"
+	"github.com/lightwebinc/teranode-bridge/registry"
 	"github.com/lightwebinc/teranode-bridge/retrieval"
 	"github.com/lightwebinc/teranode-bridge/tnwire"
 	"github.com/prometheus/client_golang/prometheus"
@@ -99,9 +100,20 @@ func main() {
 	}
 
 	objects := cache.New(cache.Options{MaxBytes: *cacheBytes, TTL: *cacheTTL})
+	// Which objects merkle-service has actually been TOLD about. Deliberately
+	// not the cache: the cache holds bytes so a pull can be served, this holds
+	// the announce verdict, and only a successful announce writes to it. Aged
+	// alongside the cache, which is what makes a failed announce self-healing —
+	// the object is announced again on the next redelivery instead of sitting
+	// cached and invisible until it falls out of both.
+	announced := registry.New(*cacheTTL, 1<<20)
 	ret := retrieval.New(retrieval.Config{Listen: *retrievalListen, APIPrefix: *apiPrefix}, objects, objects, noTxs{}, log)
 
 	var producer *msannounce.Producer
+	// ann is the same producer behind the handlers' seam. It is assigned only
+	// when one is built: a nil *msannounce.Producer stored in an interface is
+	// NOT a nil interface, and the handlers read nil as sink mode.
+	var ann announcer
 	baseURL := ""
 	if !sink {
 		if *advertise == "" || *kafkaBrokers == "" {
@@ -122,6 +134,7 @@ func main() {
 			log.Error("announce producer", "err", err)
 			os.Exit(1)
 		}
+		ann = producer
 		defer producer.Close()
 		pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := producer.Ping(pingCtx); err != nil {
@@ -137,14 +150,14 @@ func main() {
 			Name: "subtree", Class: objfmt.ClassSubtree, Addr: *subtreeListen, Log: log, MaxObject: *maxObject,
 			SizeHistogram: true,
 			Handle: func(ctx context.Context, obj []byte) error {
-				return handleSubtree(ctx, obj, objects, producer, log)
+				return handleSubtree(ctx, obj, objects, announced, ann, log)
 			},
 		},
 		{
 			Name: "block", Class: objfmt.ClassBlock, Addr: *blockListen, Log: log, MaxObject: *maxObject,
 			SizeHistogram: true,
 			Handle: func(ctx context.Context, obj []byte) error {
-				return handleBlock(ctx, obj, objects, producer, log)
+				return handleBlock(ctx, obj, objects, announced, ann, log)
 			},
 		},
 	}
@@ -233,10 +246,26 @@ func main() {
 	wg.Wait()
 }
 
+// announcer is the announce seam the lane handlers publish through:
+// *msannounce.Producer in production, a stub in tests. A nil announcer is sink
+// mode — receive, cache and serve, tell no one.
+type announcer interface {
+	Subtree(ctx context.Context, displayHash string) error
+	Block(ctx context.Context, displayHash string, height uint64, header, coinbase []byte) error
+}
+
 // handleSubtree stores the frame and announces it. Store before announcing:
 // merkle-service fetches the moment the announcement lands, and a fetch that
 // races the store would 404 and charge our peer health.
-func handleSubtree(ctx context.Context, obj []byte, objects *cache.Cache, producer *msannounce.Producer, log *slog.Logger) error {
+//
+// The cache is not the dedup gate; `announced` is. An object whose announce
+// FAILED stays cached — the retrieval plane must still be able to serve a pull
+// for it — but is not recorded as announced, so the next redelivery announces
+// it again. Gating on the cache instead would read that redelivery as a
+// duplicate and leave merkle-service permanently unaware of an object we hold.
+func handleSubtree(ctx context.Context, obj []byte, objects *cache.Cache, announced *registry.Registry,
+	producer announcer, log *slog.Logger) error {
+
 	if len(obj) < objfmt.SubtreeHeaderSize {
 		return fmt.Errorf("subtree frame too short: %d bytes", len(obj))
 	}
@@ -244,36 +273,49 @@ func handleSubtree(ctx context.Context, obj []byte, objects *cache.Cache, produc
 	if err != nil {
 		return err
 	}
-	dup := objects.Has(cache.Key(root))
 	objects.Put(cache.Key(root), "subtree", obj)
-	if dup {
-		log.Debug("subtree already held, not re-announced", "root", root.Display())
+	if _, done := announced.Lookup(registry.Key(root)); done {
+		// Lookup, not Mark, because Mark would INSERT an unannounced object.
+		// Mark on the way out only refreshes the entry, so the suppression
+		// window tracks the cache's TTL exactly as it did when the cache was
+		// the gate: an object the edge keeps redelivering is never re-announced.
+		announced.Mark(registry.Key(root), registry.Delivered)
+		log.Debug("subtree already announced, not re-announced", "root", root.Display())
 		return nil
 	}
 	log.Info("subtree received", "root", root.Display(), "bytes", len(obj))
-	if producer == nil {
-		return nil
+	if producer != nil {
+		if err := producer.Subtree(ctx, root.Display()); err != nil {
+			return err
+		}
 	}
-	return producer.Subtree(ctx, root.Display())
+	announced.Mark(registry.Key(root), registry.Delivered)
+	return nil
 }
 
 // handleBlock stores the frame and announces it with the inline fields
 // merkle-service's BlockMessage carries. Height, header and coinbase are
 // extracted through the tested-lossless tnwire round trip rather than a
 // third parser of the BRC-144 layout.
-func handleBlock(ctx context.Context, obj []byte, objects *cache.Cache, producer *msannounce.Producer, log *slog.Logger) error {
+//
+// Announce-failure handling is handleSubtree's: cached either way, recorded as
+// announced only on success.
+func handleBlock(ctx context.Context, obj []byte, objects *cache.Cache, announced *registry.Registry,
+	producer announcer, log *slog.Logger) error {
+
 	if len(obj) < objfmt.BlockPrefixSize {
 		return fmt.Errorf("block frame too short: %d bytes", len(obj))
 	}
 	id := hashid.DoubleSHA256(obj[:80])
-	dup := objects.Has(cache.Key(id))
 	objects.Put(cache.Key(id), "block", obj)
-	if dup {
-		log.Debug("block already held, not re-announced", "hash", id.Display())
+	if _, done := announced.Lookup(registry.Key(id)); done {
+		announced.Mark(registry.Key(id), registry.Delivered) // refresh; see handleSubtree
+		log.Debug("block already announced, not re-announced", "hash", id.Display())
 		return nil
 	}
 	if producer == nil {
 		log.Info("block received", "hash", id.Display(), "bytes", len(obj))
+		announced.Mark(registry.Key(id), registry.Delivered)
 		return nil
 	}
 	tn, err := tnwire.ToTeranode(obj)
@@ -285,7 +327,11 @@ func handleBlock(ctx context.Context, obj []byte, objects *cache.Cache, producer
 		return fmt.Errorf("block %s: %w", id.Display(), err)
 	}
 	log.Info("block received", "hash", id.Display(), "height", blk.Height, "bytes", len(obj))
-	return producer.Block(ctx, id.Display(), blk.Height, blk.Header, blk.Coinbase)
+	if err := producer.Block(ctx, id.Display(), blk.Height, blk.Header, blk.Coinbase); err != nil {
+		return err
+	}
+	announced.Mark(registry.Key(id), registry.Delivered)
+	return nil
 }
 
 // noTxs satisfies retrieval.TxStore for a bridge with no tx lane: every
@@ -324,7 +370,8 @@ func logStats(log *slog.Logger, laneSet []*lanes.Lane, objects *cache.Cache, pro
 	for _, l := range laneSet {
 		s := l.Stats()
 		log.Info("lane stats", "lane", s.Name, "conns", s.Conns, "active", s.Active,
-			"objects", s.Objects, "bytes", s.Bytes, "errors", s.Errors, "rejected", s.Rejected)
+			"objects", s.Objects, "bytes", s.Bytes, "errors", s.Errors, "dropped", s.Dropped,
+			"rejected", s.Rejected)
 	}
 	cs := objects.Stats()
 	log.Info("cache stats", "entries", cs.Entries, "bytes", cs.Bytes, "hits", cs.Hits,

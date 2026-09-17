@@ -92,8 +92,9 @@ listening. Prometheus series:
 | --- | --- | --- |
 | `arcade_bridge_lane_objects_total` | `lane` | objects received per delivery lane |
 | `arcade_bridge_lane_bytes_total` | `lane` | bytes received per delivery lane |
-| `arcade_bridge_lane_errors_total` | `lane` | per-object handler failures (the announcement did not produce, or the frame could not be parsed for its inline block fields); the connection is kept and the object stays cached but un-announced. Framing faults are not counted here: they drop the connection and appear only in the log |
-| `arcade_bridge_lane_objects_rejected_total` | `lane` | objects refused by a lane handler on format policy; no arcade-bridge lane currently enforces one, so a non-zero value is unexpected |
+| `arcade_bridge_lane_errors_total` | `lane` | per-object handler failures (the announcement did not produce, or the frame could not be parsed for its inline block fields); the connection is kept and the object stays cached but un-announced, and the next redelivery announces it again. Framing faults are not counted here |
+| `arcade_bridge_lane_connections_dropped_total` | `lane` | connections dropped on a framing fault: a malformed object, or one over `-max-object`. A bare stream has no resync point, so the connection must go and the edge redials. This is the only series for a malformed stream |
+| `arcade_bridge_lane_objects_rejected_total` | `lane` | well-framed objects refused by a lane handler on format policy; no arcade-bridge lane enforces one today, so a non-zero value is unexpected. Exported for parity with teranode-bridge |
 | `arcade_bridge_cache_entries` / `_cache_bytes` | | current cache occupancy |
 | `arcade_bridge_announce_total` | `class` | announcements published to merkle-service |
 | `arcade_bridge_announce_failures_total` | | failed announcement publishes |
@@ -103,7 +104,11 @@ listening. Prometheus series:
 | `arcade_bridge_uptunnel_failures_total` | | up-tunnel dial and write failures |
 
 The signals worth watching: `announce_failures_total` climbing means
-merkle-service is not hearing about objects the bridge holds;
+merkle-service is not hearing about objects the bridge holds (each such object
+stays cached and is announced again on its next redelivery, so a transient
+Kafka outage self-heals only if the edge redelivers);
+`lane_connections_dropped_total` climbing means a sender is emitting frames
+this lane cannot walk;
 `facade_txs_total{result="missing_parent"}` climbing under a chained workload
 means the recent cache is undersized or `-hydrate-asset` is unset;
 `uptunnel_failures_total` climbing with `sent_total` flat means the fabric

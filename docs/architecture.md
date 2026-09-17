@@ -69,10 +69,18 @@ stale-announcement grace then has to excuse.
 ### Duplicates
 
 The fabric deduplicates identical objects, but an edge redial can redeliver
-one. The cache is the dedup gate: an object already held is stored again
-(refreshing its TTL) but not re-announced. Downstream, merkle-service's own
-processing is idempotent per hash, so a duplicate announcement is harmless
-either way.
+one. The dedup gate is the *announced* set, not the cache, and the distinction
+matters: the cache holds bytes so a pull can be served, the announced set holds
+the announce verdict, and **only a successful announce writes to it**. A
+redelivered object is therefore stored again (refreshing its TTL) and
+re-announced only if it was never announced successfully.
+
+Gating on the cache would make a failed announce permanent: the object is
+recorded the moment it is stored, which is before the announcement is
+attempted, so the redelivery that should retry it reads as a duplicate and
+merkle-service stays unaware of an object the bridge is holding and could
+serve. Downstream, merkle-service's own processing is idempotent per hash, so
+the occasional duplicate announcement the looser gate can produce is harmless.
 
 ## The facade
 
@@ -154,9 +162,10 @@ header, exactly as the chain identifies it.
 | Failure | Behaviour |
 | --- | --- |
 | Kafka unreachable at startup | warn and continue; the first announcement that cannot be produced surfaces as a handler error |
-| Kafka down mid-run | the announcement fails and is counted (`announce_failures_total`, lane `errors`); the connection is kept. The object stays cached but merkle-service is never told of it, and a redelivery is treated as a duplicate and not re-announced, so it is announced again only after it ages out of the cache and arrives once more |
+| Kafka down mid-run | the announcement fails and is counted (`announce_failures_total`, lane `errors`); the connection is kept. The object stays cached and servable but is NOT recorded as announced, so the next redelivery announces it again. Nothing re-announces on its own: an object delivered exactly once while Kafka was down stays unannounced |
 | retrieval fetch for an expired object | honest 404, never an empty 200; merkle-service classifies by announcement age |
 | up-tunnel down | facade answers a bodyless 503 (infrastructure, not verdict); Arcade requeues |
+| malformed object on a delivery lane | connection dropped (a bare stream has no resync point), `lane_connections_dropped_total` incremented, the edge redials |
 | malformed transaction in a batch | one `TX_INVALID` line, remaining stream abandoned (self-delimiting streams cannot resync); Arcade narrows the chunk and resubmits |
 | unresolvable parent | `TX_MISSING_PARENT` verdict for that transaction only; the rest of the batch proceeds |
 
@@ -170,7 +179,8 @@ uptunnel/            long-lived bare EF stream with address failover
 ```
 
 Imported from teranode-bridge: `lanes` (per-class TCP listeners over bare
-object streams), `cache` (hash-keyed, TTL'd, copy-on-put), `retrieval` (the
+object streams), `cache` (hash-keyed, TTL'd, copy-on-put), `registry` (the
+TTL'd seen-set that records what has been announced), `retrieval` (the
 asset-style pull surface), `hashid`, `tnwire`. Those packages are
 the documented extension seams of that repository; this bridge is a consumer
 of them, not a fork.

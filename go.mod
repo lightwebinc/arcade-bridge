@@ -5,10 +5,10 @@ go 1.26.2
 require (
 	github.com/bsv-blockchain/go-sdk v1.5.2
 	github.com/lightwebinc/shard-common v0.20.0
-	github.com/lightwebinc/teranode-bridge v0.8.0
+	github.com/lightwebinc/teranode-bridge v0.9.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
-	github.com/twmb/franz-go v1.21.6
+	github.com/twmb/franz-go v1.21.7
 )
 
 require (
@@ -17,7 +17,7 @@ require (
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/klauspost/compress v1.19.1 // indirect
+	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/mrz1836/go-whatsonchain v1.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect

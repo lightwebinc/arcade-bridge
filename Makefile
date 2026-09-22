@@ -31,3 +31,9 @@ clean:
 
 help:                  ## list targets
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+
+licences:              ## fail if LICENSE-THIRD-PARTY is stale
+	python3 scripts/gen-third-party-licenses.py . --check
+
+licences-update:       ## regenerate LICENSE-THIRD-PARTY from what the binary links
+	python3 scripts/gen-third-party-licenses.py .

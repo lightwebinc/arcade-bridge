@@ -37,3 +37,8 @@ jobs:
         run: go build ./...
       - name: test
         run: go test -race ./...
+      # LICENSE-THIRD-PARTY is generated from what the binary actually links,
+      # so a new dependency that nobody notices is a licence obligation that
+      # nobody notices. This fails the build instead.
+      - name: third-party licences are current
+        run: python3 scripts/gen-third-party-licenses.py . --check

@@ -65,6 +65,14 @@ This product includes third-party software, distributed under the terms
 of their respective licenses. Each dependency retains its own copyright;
 this notice does not modify those licenses.
 
+The list below names the significant ones. It is NOT the complete set:
+a statically linked binary contains every module it imports, directly or
+not, and LICENSE-THIRD-PARTY reproduces all 27 of their licenses
+verbatim. That file is generated from what the binary actually links
+rather than maintained by hand, and it ships inside the container image,
+because nearly every license here requires its own text to reach whoever
+receives a binary and static linking discards the files they live in.
+
   github.com/lightwebinc/teranode-bridge      Apache License 2.0
   github.com/lightwebinc/shard-common         Apache License 2.0
   github.com/bsv-blockchain/go-sdk            Open BSV License Version 5

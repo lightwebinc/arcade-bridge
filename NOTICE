@@ -74,4 +74,15 @@ this notice does not modify those licenses.
   github.com/klauspost/compress               BSD 3-Clause License
   github.com/pierrec/lz4/v4                   BSD 3-Clause License
 
+© BSV Association,
+
+The attribution line above is reproduced verbatim as the Open BSV License
+Version 5 requires it, for github.com/bsv-blockchain/go-sdk. Two terms of
+that license are worth stating in plain words, because they do not match
+the permissive licenses beside it in the table: the grant is made on a
+revocable basis, and the software it covers, together with anything
+derived from it, must only be used on the BSV Blockchains. Those terms
+bind this product's use of that dependency. They do not extend to
+Lightweb Inc.'s own source, which is Apache-2.0 as stated above.
+
 =========================================================================

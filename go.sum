@@ -23,8 +23,8 @@ github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/lightwebinc/shard-common v0.20.0 h1:atHkxHEzOWhgkpjNO1UjitfM89ndAMzt1D8AAHxnAZc=
 github.com/lightwebinc/shard-common v0.20.0/go.mod h1:5fREuv1KmRZpBzO1JEewWgV7HJTqhrHMUg32IJuuUJ0=
-github.com/lightwebinc/teranode-bridge v0.9.0 h1:6DJSu/lvxR7u4f0eVRXQAqPYcueCC2sdiViBjTVOtQE=
-github.com/lightwebinc/teranode-bridge v0.9.0/go.mod h1:QF/AqS2Lgwstq0FBRvxZO06sZb06kWBO9X6ZTUNB0KI=
+github.com/lightwebinc/teranode-bridge v0.10.0 h1:ND/u94er0hpfek9zlqvH6JEzoN3GdpEmYKuWch43UYI=
+github.com/lightwebinc/teranode-bridge v0.10.0/go.mod h1:xswf8lgiDG/oor7GDaqF1RyLQvDHbcMtZj7hJuEveCM=
 github.com/mrz1836/go-whatsonchain v1.1.0 h1:m/bVHDx8t5zDcuV/l4h6ZXPcu0DQ7ZZB/p+Oy/llC1c=
 github.com/mrz1836/go-whatsonchain v1.1.0/go.mod h1:SAMQltVzWjjBSSIM9KBoLRTFuv9fIrejyEUK95qPDZI=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=

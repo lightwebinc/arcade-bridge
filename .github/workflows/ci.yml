@@ -17,28 +17,8 @@ permissions:
   contents: read
 
 jobs:
-  ci:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          # Pinned to the BUILDER toolchain, not the go.mod floor. The floor is
-          # held at 1.26.2 fleet-wide on purpose; the shipped stdlib comes from
-          # the Dockerfile builder (golang:1.27-alpine). go-version-file: go.mod
-          # reads the floor, so it exercised a stdlib we never ship -- which
-          # surfaced in vuln.yml as 10 stdlib advisories fixed in 1.26.x.
-          go-version: "1.27.1"
-      - name: gofmt
-        run: test -z "$(gofmt -l .)"
-      - name: vet
-        run: go vet ./...
-      - name: build
-        run: go build ./...
-      - name: test
-        run: go test -race ./...
-      # LICENSE-THIRD-PARTY is generated from what the binary actually links,
-      # so a new dependency that nobody notices is a licence obligation that
-      # nobody notices. This fails the build instead.
-      - name: third-party licences are current
-        run: python3 scripts/gen-third-party-licenses.py . --check
+  go:
+    uses: lightwebinc/ci/.github/workflows/go-host.yml@3f438e60ade351107a3d1601955ebbf34de8caf1 # v0.1.0
+    with:
+      gofmt: true
+      licences-check: true

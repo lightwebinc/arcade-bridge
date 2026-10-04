@@ -20,23 +20,5 @@ permissions:
   contents: read
 
 jobs:
-  vuln:
-    name: govulncheck
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          # Pinned to the BUILDER toolchain, not the go.mod floor. The floor is
-          # held at 1.26.2 fleet-wide on purpose; the shipped stdlib comes from
-          # the Dockerfile builder (golang:1.27-alpine). go-version-file: go.mod
-          # reads the floor, so it exercised a stdlib we never ship -- which
-          # surfaced in vuln.yml as 10 stdlib advisories fixed in 1.26.x.
-          go-version: "1.27.1"
-
-      - name: govulncheck
-        # The workable govulncheck pin INVERTS across toolchains: v1.1.4
-        # crashes reading Go 1.27 export data, while >=v1.2 panicked on 1.26.
-        # Re-check this pin in BOTH directions on every toolchain bump.
-        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+  govulncheck:
+    uses: lightwebinc/ci/.github/workflows/govulncheck.yml@3f438e60ade351107a3d1601955ebbf34de8caf1 # v0.1.0

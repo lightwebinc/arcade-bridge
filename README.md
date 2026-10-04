@@ -149,7 +149,7 @@ and the retrieval plane is listening.
 
 A Kubernetes Helm chart is published from a dedicated chart repository:
 
-- Repository: [`lightwebinc/arcade-bridge-helm`](https://github.com/lightwebinc/arcade-bridge-helm)
+- Repository: [`charts/arcade-bridge`](https://github.com/lightwebinc/charts/tree/main/charts/arcade-bridge)
 - OCI: `helm install bridge oci://ghcr.io/lightwebinc/charts/arcade-bridge`
 
 `config.advertise` and `config.kafka` are effectively required unless

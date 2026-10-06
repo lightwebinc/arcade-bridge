@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   go:
-    uses: lightwebinc/ci/.github/workflows/go-host.yml@192a5b5169fd635e191104c14631525bbcd5ec60 # v0.3.0
+    uses: lightwebinc/ci/.github/workflows/go-host.yml@3c61864e6d822d16119858e525129ea5c400d4d7 # v0.4.0
     with:
       gofmt: true
       licences-check: true

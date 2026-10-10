@@ -1,6 +1,8 @@
 # arcade-bridge
 
 [![CI](https://github.com/lightwebinc/arcade-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/lightwebinc/arcade-bridge/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/lightwebinc/arcade-bridge/actions/workflows/codeql.yml/badge.svg)](https://github.com/lightwebinc/arcade-bridge/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/lightwebinc/arcade-bridge)](https://github.com/lightwebinc/arcade-bridge/releases)
 [![Go Reference](https://pkg.go.dev/badge/github.com/lightwebinc/arcade-bridge.svg)](https://pkg.go.dev/github.com/lightwebinc/arcade-bridge)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
@@ -20,61 +22,32 @@ carries miner entitlements. The shared machinery (lane termination, the
 object cache, the retrieval plane, hash-order discipline, block wire
 conversion) is imported from teranode-bridge's public packages, never forked.
 
-## Proof ingest: the delivery lanes feed merkle-service
-
-merkle-service exists to pool the subtree and block firehose and turn it into
-per-transaction proofs. Stock, it hears announcements over libp2p and fetches
-the bytes from the announcing datahub across the network. Behind this bridge,
-the same objects are already pushed to the landing machine, so the fetch never
-leaves the box:
+## How it works
 
 ```text
   fabric ══push══▶ arcade-bridge
       lanes ─▶ cache ─┬─▶ announce ──▶ merkle-service   (hash, dataHubUrl)
                       └─▶ retrieval ◀─ fetch ── merkle-service
-      merkle-service ─▶ STUMP / BLOCK_PROCESSED ─▶ Arcade
-      Arcade ─▶ MINED + merkle path ─▶ clients
+      Arcade ─▶ POST /txs ─▶ facade ─▶ up-tunnel ─▶ fabric ─▶ every miner
 ```
 
-The announcements are merkle-service's own Kafka messages with `dataHubUrl`
-pointing at the bridge's retrieval plane. merkle-service keeps its ordinary
-announce, fetch, STUMP pipeline unchanged, and Arcade's transaction lifecycle
-(`SEEN_ON_NETWORK`, `MINED`, compound BUMP construction) runs exactly as it
-would against a real datahub.
+- **Proof ingest.** Pushed subtrees and blocks are cached and announced to
+  merkle-service with its own Kafka messages, `dataHubUrl` pointing at the
+  bridge's retrieval plane, so the fetch never leaves the box and Arcade's
+  lifecycle runs unchanged.
+- **Broadcast.** The propagation facade serves the Teranode-shaped
+  `POST /txs` Arcade already speaks and sends one copy up the tunnel instead
+  of O(N) unicast POSTs; the fabric fans it out to every miner. Standard-format
+  submissions are hydrated to extended format, and Teranode's failure-list
+  grammar is preserved.
 
-## Broadcast: one submit reaches every miner
-
-Arcade's stock propagation broadcasts by POSTing each batch to every datahub
-in parallel: O(N) unicast. The **propagation facade** serves the same
-Teranode-shaped `POST /txs` surface Arcade already speaks, and forwards one
-copy up the consumer tunnel into the fabric's open transaction ingress. The
-fabric fans it out to every miner-tier consumer:
-
-```text
-  Arcade propagation
-      │ POST /txs                      ▲ per-tx verdicts
-      ▼                                │ (Teranode failure-list)
-  arcade-bridge facade ────────────────┘
-      parse ─▶ ensure EF ─▶ hydrate (recent cache / asset fallback)
-      up-tunnel: one bare EF stream
-      │
-      ▼
-  fabric ingress ─▶ miner A, miner B, ... miner N   (one copy, fanned)
-```
-
-The response contract is Teranode's own failure-list grammar, so Arcade's
-per-transaction classifier, retry reaper, and wallet-visible rows behave
-identically. The fabric is extended-format native at ingress: EF submissions
-pass through byte for byte, standard-serialized ones are hydrated from the
-facade's recent-submission cache (children usually chain onto parents the
-facade just carried) with an optional asset-API fallback, and a parent nowhere
-to be found fails that one transaction as `TX_MISSING_PARENT`, the verdict
-Arcade already knows how to retry.
+[Architecture](docs/architecture.md) covers both contracts in full.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md): components, the announce and fetch contract, the facade contract, hydration, byte order, failure modes
 - [Configuration](docs/configuration.md): every flag, defaults, deployment examples, reading the stats
+- [Metrics reference](docs/references/prometheusMetrics.md): every series and the chart's alert expressions
 - [BRC-143 Subtree Data](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-143-subtree-data.md) and [BRC-144 Block Frame](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-144-block-frame.md): what the delivery lanes carry
 - [BRC-30 Transaction Extended Format](https://github.com/bsv-blockchain/BRCs/blob/master/transactions/0030.md): what the up-tunnel stream carries
 - [Deliver once](docs/deliver-once.md): one crossing per landing site, and how a co-located Arcade + Teranode site fans locally
@@ -102,11 +75,6 @@ go test -race ./...
 # Use for lane burn-in before the Arcade stack attaches.
 ./arcade-bridge -mode sink -stats-every 10s
 
-# Feed: announce received subtrees and blocks to merkle-service.
-./arcade-bridge \
-  -advertise 'http://192.0.2.10:9165' \
-  -kafka     'localhost:19092'
-
 # Feed plus facade: also serve Arcade's broadcast path into the fabric.
 ./arcade-bridge \
   -advertise     'http://192.0.2.10:9165' \
@@ -129,13 +97,9 @@ reference.
 | `9167` | in | `/metrics`, `/healthz`, `/readyz` |
 | `8725` | out | bare BRC-30 EF transaction stream to the fabric ingress |
 
-The delivery lanes use the canonical `9143`/`9144` shared with teranode-bridge:
-a landing site receives each object class once, on the same port, whichever
-bridge terminates it. Two bridges cannot bind these on one host, which is
-deliberate - it forecloses the wasteful two-slot / double-delivery topology. A
-site that runs both stacks delivers over ONE slot into a small local tee; see
-[docs/deliver-once.md](docs/deliver-once.md). `8725` outbound matches the
-object plane's transaction class number.
+The delivery lanes use the canonical `9143`/`9144` shared with teranode-bridge,
+so two bridges cannot bind them on one host (deliberate: it forecloses double
+delivery). A site running both stacks uses ONE slot and a local tee; see [docs/deliver-once.md](docs/deliver-once.md).
 
 ## Observability
 
@@ -143,7 +107,8 @@ Prometheus series are `arcade_bridge_*` on `-metrics-addr` (default
 `[::]:9167`), covering lane, cache, announce, facade, and up-tunnel counters.
 The same numbers appear as structured `log/slog` stats blocks every
 `-stats-every` (default 60s). `/readyz` reports ready once the lanes are bound
-and the retrieval plane is listening.
+and the retrieval plane is listening. See the
+[metrics reference](docs/references/prometheusMetrics.md).
 
 ## Helm chart
 
@@ -164,7 +129,7 @@ chart README for the three-service shape and scaling notes.
 ├── msannounce/          # merkle-service announcement messages + Kafka producer
 ├── facade/              # Teranode-shaped POST /txs surface + EF hydration
 ├── uptunnel/            # bare EF stream to the fabric ingress, with failover
-├── docs/                # architecture, configuration, deliver-once
+├── docs/                # architecture, configuration, metrics reference, deliver-once
 ├── Dockerfile
 ├── Makefile
 └── .github/workflows/{ci,codeql,image-publish,release,vuln}.yml
@@ -177,10 +142,12 @@ chart README for the three-service shape and scaling notes.
 - [`github.com/bsv-blockchain/go-sdk`](https://github.com/bsv-blockchain/go-sdk): transaction parsing and extended-format serialization
 - [`github.com/twmb/franz-go`](https://github.com/twmb/franz-go): Kafka producer
 
-The bridge deliberately does not link Arcade's or merkle-service's modules.
-The one contract it needs, two small JSON announcement messages, is reproduced
-from their wire shape and pinned by contract-fixture tests, so a small bridge
-does not pull in another service's dependency tree.
+Arcade's and merkle-service's modules are deliberately not linked; their
+announcement wire shape is reproduced and pinned by contract-fixture tests.
+
+## Releases
+
+Releases and notes live on [GitHub Releases](https://github.com/lightwebinc/arcade-bridge/releases); there is no CHANGELOG.
 
 ## License
 

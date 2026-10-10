@@ -108,22 +108,8 @@ response from the facade satisfies it.
 | `-stats-every` | `1m` | interval between structured stats log blocks; `0` disables |
 
 `/readyz` reports ready once every lane is bound and the retrieval plane is
-listening. Prometheus series:
-
-| Series | Labels | Meaning |
-| --- | --- | --- |
-| `arcade_bridge_lane_objects_total` | `lane` | objects received per delivery lane |
-| `arcade_bridge_lane_bytes_total` | `lane` | bytes received per delivery lane |
-| `arcade_bridge_lane_errors_total` | `lane` | per-object handler failures (the announcement did not produce, or the frame could not be parsed for its inline block fields); the connection is kept and the object stays cached but un-announced, and the next redelivery announces it again. Framing faults are not counted here |
-| `arcade_bridge_lane_connections_dropped_total` | `lane` | connections dropped on a framing fault: a malformed object, or one over `-max-object`. A bare stream has no resync point, so the connection must go and the edge redials. This is the only series for a malformed stream |
-| `arcade_bridge_lane_objects_rejected_total` | `lane` | well-framed objects refused by a lane handler on format policy; no arcade-bridge lane enforces one today, so a non-zero value is unexpected. Exported for parity with teranode-bridge |
-| `arcade_bridge_cache_entries` / `_cache_bytes` | | current cache occupancy |
-| `arcade_bridge_announce_total` | `class` | announcements published to merkle-service |
-| `arcade_bridge_announce_failures_total` | | failed announcement publishes |
-| `arcade_bridge_facade_batches_total` | | facade submit batches received |
-| `arcade_bridge_facade_txs_total` | `result` | per-transaction outcomes: `accepted`, `hydrated`, `missing_parent`, `malformed` |
-| `arcade_bridge_uptunnel_sent_total` / `_bytes_total` | | transactions and bytes streamed up-tunnel |
-| `arcade_bridge_uptunnel_failures_total` | | up-tunnel dial and write failures |
+listening. Every Prometheus series, with the chart's alert expressions, is in
+the [metrics reference](references/prometheusMetrics.md).
 
 The signals worth watching: `announce_failures_total` climbing means
 merkle-service is not hearing about objects the bridge holds (each such object

@@ -46,9 +46,8 @@ redial.
 The delivery lanes call their handler INLINE in the per-connection read loop, so
 whatever the handler does is time the socket is not being read. Announcing to
 merkle-service synchronously therefore turned Kafka latency into TCP
-backpressure, and the edge — not this process — paid for it: measured on devnet
-2026-09-17, the arcade-us consumer had 6,016 objects shed by its edge against
-4,145 delivered, because this reader was too slow.
+backpressure, and the edge paid for it: under load the edge shed more objects
+than it delivered, because this reader was too slow.
 
 Objects are cached BEFORE the announce is queued, so the retrieval plane can
 always serve what merkle-service is about to be told about. Only the announce

@@ -164,7 +164,7 @@ chart README for the three-service shape and scaling notes.
 ├── msannounce/          # merkle-service announcement messages + Kafka producer
 ├── facade/              # Teranode-shaped POST /txs surface + EF hydration
 ├── uptunnel/            # bare EF stream to the fabric ingress, with failover
-├── docs/                # architecture, configuration, deliver-once, header-feeder
+├── docs/                # architecture, configuration, deliver-once
 ├── Dockerfile
 ├── Makefile
 └── .github/workflows/{ci,codeql,image-publish,release,vuln}.yml

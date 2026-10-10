@@ -50,7 +50,7 @@ conversion) is imported from teranode-bridge's public packages, never forked.
 - [Metrics reference](docs/references/prometheusMetrics.md): every series and the chart's alert expressions
 - [BRC-143 Subtree Data](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-143-subtree-data.md) and [BRC-144 Block Frame](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/brc-144-block-frame.md): what the delivery lanes carry
 - [BRC-30 Transaction Extended Format](https://github.com/bsv-blockchain/BRCs/blob/master/transactions/0030.md): what the up-tunnel stream carries
-- [Deliver once](docs/deliver-once.md): one crossing per landing site, and how a co-located Arcade + Teranode site fans locally
+- [Deliver once](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/deliver-once.md): one crossing per landing site, and how a co-located Arcade + Teranode site fans locally
 
 ## Requirements
 
@@ -97,9 +97,9 @@ reference.
 | `9167` | in | `/metrics`, `/healthz`, `/readyz` |
 | `8725` | out | bare BRC-30 EF transaction stream to the fabric ingress |
 
-The delivery lanes use the canonical `9143`/`9144` shared with teranode-bridge,
-so two bridges cannot bind them on one host (deliberate: it forecloses double
-delivery). A site running both stacks uses ONE slot and a local tee; see [docs/deliver-once.md](docs/deliver-once.md).
+The delivery lanes use the canonical `9143`/`9144` shared with teranode-bridge
+([lane numbering](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/lane-numbering.md)); a site running both stacks uses one slot and a
+local tee ([deliver once](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/deliver-once.md)).
 
 ## Observability
 
@@ -129,7 +129,7 @@ chart README for the three-service shape and scaling notes.
 ├── msannounce/          # merkle-service announcement messages + Kafka producer
 ├── facade/              # Teranode-shaped POST /txs surface + EF hydration
 ├── uptunnel/            # bare EF stream to the fabric ingress, with failover
-├── docs/                # architecture, configuration, metrics reference, deliver-once
+├── docs/                # architecture, configuration, metrics reference
 ├── Dockerfile
 ├── Makefile
 └── .github/workflows/{ci,codeql,image-publish,release,vuln}.yml

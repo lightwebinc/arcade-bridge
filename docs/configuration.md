@@ -150,16 +150,10 @@ arcade-bridge \
 
 ## Lane numbers
 
-The delivery lanes default to the canonical `9143`/`9144`, the same numbers
-teranode-bridge uses. A landing site receives each object class once, on the
-canonical port, whichever bridge terminates it. Two bridges cannot bind these
-on one host, and that is deliberate: it forecloses the wasteful topology where
-two consumer slots at one site pull the same objects across the tunnel twice.
-A site that runs both an Arcade stack and a Teranode cluster delivers over ONE
-slot into a small local tee that fans to both over loopback; the bridges then
-take distinct loopback ports behind it. That design, and why divergent lane
-ports are allowed only on loopback, is in
-[deliver-once.md](deliver-once.md).
+The delivery lanes default to the canonical `9143`/`9144`, shared with
+teranode-bridge, so two bridges cannot bind them on one host. See
+[lane numbering](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/lane-numbering.md) and [deliver once](https://github.com/lightwebinc/bsv-multicast/blob/main/docs/deliver-once.md).
+
 
 The outbound port (`8725`) matches the object plane's transaction class
 number: the facade submits on the open class, which is the whole point. A

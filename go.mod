@@ -3,9 +3,9 @@ module github.com/lightwebinc/arcade-bridge
 go 1.26.2
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.7.2
+	github.com/bsv-blockchain/go-sdk v1.7.3
 	github.com/lightwebinc/shard-common v0.22.0
-	github.com/lightwebinc/teranode-bridge v0.10.1
+	github.com/lightwebinc/teranode-bridge v0.11.1
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/twmb/franz-go v1.22.2
@@ -30,7 +30,7 @@ require (
 	go.opentelemetry.io/otel v1.45.0 // indirect
 	go.opentelemetry.io/otel/metric v1.45.0 // indirect
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
-	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )

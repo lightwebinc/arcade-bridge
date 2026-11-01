@@ -110,7 +110,7 @@ parses it per transaction:
   when the up-tunnel itself is down, because that is an endpoint condition,
   not a verdict about any transaction.
 
-Honouring the grammar exactly is what lets Arcade's classifier, its durable
+Honoring the grammar exactly is what lets Arcade's classifier, its durable
 retry reaper, and its wallet-visible rows behave identically against the
 facade and against a real datahub.
 
@@ -142,7 +142,7 @@ workloads.
 
 Accepted transactions are written to the fabric's open transaction ingress as
 one bare EF stream over a long-lived TCP connection (`uptunnel`). The stream
-is self-delimiting, so a partial write desynchronises the reader; any write
+is self-delimiting, so a partial write desynchronizes the reader; any write
 error closes the connection and the next submit redials. Several ingress
 addresses may be configured (a dual-homed tunnel's per-side inners): a failed
 submit advances to the next address before retrying once, so a side flip does
@@ -159,7 +159,7 @@ header, exactly as the chain identifies it.
 
 ## Failure modes
 
-| Failure | Behaviour |
+| Failure | Behavior |
 | --- | --- |
 | Kafka unreachable at startup | warn and continue; the first announcement that cannot be produced surfaces as a handler error |
 | Kafka down mid-run | the announcement fails and is counted (`announce_failures_total`, lane `errors`); the connection is kept. The object stays cached and servable but is NOT recorded as announced, so the next redelivery announces it again. Nothing re-announces on its own: an object delivered exactly once while Kafka was down stays unannounced |

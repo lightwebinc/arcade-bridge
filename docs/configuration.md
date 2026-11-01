@@ -56,7 +56,7 @@ is deferred.
 Watch `arcade_bridge_announce_queue_depth` against `_capacity`: a depth that
 climbs means merkle-service is slower than the lane. `_dropped_total` above zero
 means the queue filled and those objects are cached and retrievable but were
-never advertised — raise `-announce-queue`, add workers, or fix the downstream.
+never advertised: raise `-announce-queue`, add workers, or fix the downstream.
 
 Size `-cache-ttl` to comfortably exceed merkle-service's worst-case Kafka
 consumer lag: a fetch after expiry is an honest 404 that its

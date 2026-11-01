@@ -115,7 +115,7 @@ and the retrieval plane is listening. See the
 A Kubernetes Helm chart is published from a dedicated chart repository:
 
 - Repository: [`charts/arcade-bridge`](https://github.com/lightwebinc/charts/tree/main/charts/arcade-bridge)
-- OCI: `helm install bridge oci://ghcr.io/lightwebinc/charts/arcade-bridge`
+- OCI: `helm install bridge oci://ghcr.io/lightwebinc/charts/arcade-bridge --version 0.1.2`
 
 `config.advertise` and `config.kafka` are effectively required unless
 `config.mode=sink`; setting `config.edgeIngress` turns the facade on. See the
@@ -130,6 +130,7 @@ chart README for the three-service shape and scaling notes.
 ├── facade/              # Teranode-shaped POST /txs surface + EF hydration
 ├── uptunnel/            # bare EF stream to the fabric ingress, with failover
 ├── docs/                # architecture, configuration, metrics reference
+├── scripts/             # third-party license file generator
 ├── Dockerfile
 ├── Makefile
 └── .github/workflows/{ci,codeql,image-publish,release,vuln}.yml

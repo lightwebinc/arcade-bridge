@@ -61,7 +61,7 @@ type Config struct {
 	SubtreeTopic string // merkle-service kafka.subtreeTopic (its default: "subtree")
 	BlockTopic   string // merkle-service kafka.blockTopic (its default: "block")
 
-	// DataHubURL is the full base merkle-service should fetch from — this
+	// DataHubURL is the full base merkle-service should fetch from, this
 	// bridge's retrieval plane including any API prefix. merkle-service
 	// appends /subtree/{hash} and /block/{hash} verbatim.
 	DataHubURL string

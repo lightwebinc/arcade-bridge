@@ -2,7 +2,7 @@
 // open tx ingress over a long-lived TCP connection through the consumer
 // tunnel.
 //
-// The stream is self-delimiting — no length prefix, no framing — so a
+// The stream is self-delimiting (no length prefix, no framing) so a
 // partial write desynchronises the reader; any write error therefore closes
 // the connection and the next submit redials. Several ingress addresses may
 // be given (a dual-homed tunnel's per-side inners): a failed submit advances

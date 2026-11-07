@@ -4,7 +4,7 @@
 // It is the app-tier sibling of teranode-bridge, and deliberately NOT that
 // binary: teranode-bridge is the miner-tier landing bridge (submitter role,
 // blockchain-notification reverse path, miner-gated up-tunnel publish), while
-// an arcade operator is a plain delivery consumer — subtrees and blocks come
+// an arcade operator is a plain delivery consumer: subtrees and blocks come
 // DOWN the tunnel, transactions go UP on the open class, and nothing here
 // holds miner entitlements. The shared machinery (lanes, cache, retrieval
 // plane, hash discipline, BRC-144 wire conversion) is imported from
@@ -16,8 +16,8 @@
 //	                        ├─ cache ── merkle-service Kafka announce
 //	block lane   (BRC-144) ─┘      └── retrieval plane (/subtree, /block)
 //
-// merkle-service fetches announced bytes from the retrieval plane — already
-// pushed, so the "fetch" never leaves the box — builds STUMPs, and drives
+// merkle-service fetches announced bytes from the retrieval plane: already
+// pushed, so the "fetch" never leaves the box: builds STUMPs, and drives
 // arcade's SEEN/MINED lifecycle exactly as it would against a datahub.
 package main
 
@@ -106,7 +106,7 @@ func main() {
 	// Which objects merkle-service has actually been TOLD about. Deliberately
 	// not the cache: the cache holds bytes so a pull can be served, this holds
 	// the announce verdict, and only a successful announce writes to it. Aged
-	// alongside the cache, which is what makes a failed announce self-healing —
+	// alongside the cache, which is what makes a failed announce self-healing:
 	// the object is announced again on the next redelivery instead of sitting
 	// cached and invisible until it falls out of both.
 	announced := registry.New(*cacheTTL, 1<<20)
@@ -173,7 +173,7 @@ func main() {
 	}
 
 	// Propagation facade: arcade's POST /txs surface, forwarding one bare EF
-	// stream up the tunnel. Enabled by -edge-ingress — but never in sink
+	// stream up the tunnel. Enabled by -edge-ingress, but never in sink
 	// mode, whose whole point is touching nothing.
 	var fac *facade.Server
 	var up *uptunnel.Client
@@ -267,7 +267,7 @@ func main() {
 
 // announcer is the announce seam the lane handlers publish through:
 // *msannounce.Producer in production, a stub in tests. A nil announcer is sink
-// mode — receive, cache and serve, tell no one.
+// mode: receive, cache and serve, tell no one.
 type announcer interface {
 	Subtree(ctx context.Context, displayHash string) error
 	Block(ctx context.Context, displayHash string, height uint64, header, coinbase []byte) error
@@ -278,8 +278,8 @@ type announcer interface {
 // races the store would 404 and charge our peer health.
 //
 // The cache is not the dedup gate; `announced` is. An object whose announce
-// FAILED stays cached — the retrieval plane must still be able to serve a pull
-// for it — but is not recorded as announced, so the next redelivery announces
+// FAILED stays cached, the retrieval plane must still be able to serve a pull
+// for it, but is not recorded as announced, so the next redelivery announces
 // it again. Gating on the cache instead would read that redelivery as a
 // duplicate and leave merkle-service permanently unaware of an object we hold.
 func handleSubtree(ctx context.Context, obj []byte, objects *cache.Cache, announced *registry.Registry,
@@ -310,7 +310,7 @@ func handleSubtree(ctx context.Context, obj []byte, objects *cache.Cache, announ
 	// The object is CACHED above and therefore already retrievable; only the
 	// announce is deferred, so merkle-service can never be told about an object
 	// we cannot serve. Returning here is what lets the lane read the next
-	// object instead of waiting on Kafka — see announceQueue.
+	// object instead of waiting on Kafka: see announceQueue.
 	if q != nil {
 		q.submit(announceJob{
 			what: "subtree " + root.Display(),

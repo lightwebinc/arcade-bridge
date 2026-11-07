@@ -3,7 +3,7 @@ package msannounce
 // The tests here are contract fixtures against merkle-service's decoder
 // (internal/kafka/messages.go at the pinned review SHA): the JSON field names
 // and value encodings below are what DecodeSubtreeMessage/DecodeBlockMessage
-// read. Upstream is deliberately NOT a Go dependency — the mirror structs are
+// read. Upstream is deliberately NOT a Go dependency, the mirror structs are
 // the vendored fixture, and a field-name drift upstream must be caught by
 // re-reviewing the pin, not by a silently updated import.
 
@@ -59,7 +59,7 @@ func TestSubtreeMessageDecodesAsFixture(t *testing.T) {
 	}
 }
 
-// TestSubtreeMessageFieldNames pins the exact wire keys — a renamed Go field
+// TestSubtreeMessageFieldNames pins the exact wire keys, a renamed Go field
 // with a preserved struct shape would still pass the round-trip test above,
 // so the raw JSON is asserted too.
 func TestSubtreeMessageFieldNames(t *testing.T) {

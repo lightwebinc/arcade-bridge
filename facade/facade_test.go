@@ -2,7 +2,7 @@ package facade
 
 // Contract fixtures: the response-body assertions below use arcade's OWN
 // parsing rules (teranode/client.go at the pinned review SHA) re-declared as
-// fixtures — header line, then one "<NAME> (<num>): …" line per failure,
+// fixtures: header line, then one "<NAME> (<num>): …" line per failure,
 // txid extracted via the [ProcessTransaction][<txid>] wrapper. A body this
 // facade emits must settle under those rules exactly as Teranode's does.
 
@@ -68,7 +68,7 @@ func makeChain(t *testing.T) (parent, child *sdkTx.Transaction) {
 }
 
 // makeChainSats varies the parent value so distinct chains get distinct
-// txids — two identical calls would otherwise build byte-identical
+// txids: two identical calls would otherwise build byte-identical
 // transactions.
 func makeChainSats(t *testing.T, sats uint64) (parent, child *sdkTx.Transaction) {
 	t.Helper()

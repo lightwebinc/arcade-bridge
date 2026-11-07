@@ -10,7 +10,7 @@ import (
 )
 
 // slowAnnouncer blocks until released, modelling a Kafka produce that is slow
-// rather than failing — the condition that actually hurt, because a failure
+// rather than failing, the condition that actually hurt, because a failure
 // returns instantly and only a SLOW call holds the lane's read loop.
 type slowAnnouncer struct {
 	release chan struct{}
@@ -43,7 +43,7 @@ func (s *slowAnnouncer) Block(ctx context.Context, _ string, _ uint64, _, _ []by
 // THE regression this whole change exists for: handleSubtree must return while
 // the announce is still in flight. lanes.Lane calls Handle inline in its
 // per-connection read loop, so a handler that waits on Kafka is a socket that
-// is not being read — and the EDGE, not this process, pays for it: measured on
+// is not being read, and the EDGE, not this process, pays for it: measured on
 // devnet 2026-09-17, 6,016 queue_full sheds against 4,145 objects delivered.
 //
 // The assertion is deliberately about TIME rather than about the queue's
@@ -67,7 +67,7 @@ func TestHandleSubtreeDoesNotBlockOnSlowAnnounce(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("handleSubtree blocked on a slow announce — the lane read loop is stalled " +
+		t.Fatal("handleSubtree blocked on a slow announce, the lane read loop is stalled " +
 			"and the edge will shed this consumer's lane")
 	}
 
@@ -77,7 +77,7 @@ func TestHandleSubtreeDoesNotBlockOnSlowAnnounce(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	if ann.n() != 1 {
-		t.Fatalf("announce calls = %d, want 1 — the announce must be deferred, not dropped", ann.n())
+		t.Fatalf("announce calls = %d, want 1, the announce must be deferred, not dropped", ann.n())
 	}
 }
 
@@ -97,14 +97,14 @@ func TestObjectIsCachedBeforeTheAnnounceRuns(t *testing.T) {
 	var key [32]byte
 	copy(key[:], obj[:32])
 	if _, _, ok := objects.Get(key); !ok {
-		t.Fatal("object not retrievable while its announce is still queued — " +
+		t.Fatal("object not retrievable while its announce is still queued: " +
 			"merkle-service would 404 on the fetch that the announcement triggers")
 	}
 }
 
 // A full queue must DROP and count, never block. Blocking would reintroduce the
 // exact backpressure this type removes, and an unbounded queue would trade it
-// for unbounded memory — a worse failure than the one being fixed.
+// for unbounded memory, a worse failure than the one being fixed.
 func TestFullQueueDropsRatherThanBlocking(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(discard{}, nil))
 	q := newAnnounceQueue(context.Background(), 1, 0, log) // 0 workers: nothing drains
@@ -120,7 +120,7 @@ func TestFullQueueDropsRatherThanBlocking(t *testing.T) {
 	select {
 	case <-blocked:
 	case <-time.After(2 * time.Second):
-		t.Fatal("submit blocked on a full queue — that is the backpressure this type exists to remove")
+		t.Fatal("submit blocked on a full queue, that is the backpressure this type exists to remove")
 	}
 	if _, _, _, dropped, _, _ := q.stats(); dropped == 0 {
 		t.Fatal("a full queue must COUNT its drops; silent loss here is indistinguishable " +
@@ -130,7 +130,7 @@ func TestFullQueueDropsRatherThanBlocking(t *testing.T) {
 
 // A failed announce must not mark the object announced, or the redelivery that
 // is supposed to retry it is suppressed forever. Same invariant the inline path
-// has always had — it has to survive the move onto the worker.
+// has always had: it has to survive the move onto the worker.
 func TestFailedAsyncAnnounceLeavesObjectUnannounced(t *testing.T) {
 	objects, announced, log := testFixtures(t)
 	boom := errors.New("kafka down")

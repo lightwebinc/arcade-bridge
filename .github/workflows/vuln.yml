@@ -7,7 +7,7 @@ on:
   schedule:
     # Tuesdays and Fridays 04:00 UTC, tracking Renovate's Tue+Fri wave so a
     # finding has a fix PR behind it the same afternoon rather than waiting out
-    # the rest of the week. CodeQL holds Mondays 03:00 — keep them apart so a
+    # the rest of the week. CodeQL holds Mondays 03:00, keep them apart so a
     # failure is unambiguous about which scanner found what.
     - cron: "0 4 * * 2,5"
   workflow_dispatch:

@@ -13,12 +13,12 @@ import (
 // WHY THIS EXISTS. lanes.Lane calls Handle INLINE in its per-connection read
 // loop (teranode-bridge lanes.go), so for as long as a handler runs, nothing is
 // reading the socket. handleSubtree used to announce synchronously, and a
-// Kafka produce that takes a second is a second of not reading — the receive
+// Kafka produce that takes a second is a second of not reading, the receive
 // window fills, the edge's write blocks, and at its deadline the edge counts an
 // i/o timeout and eventually sheds the object.
 //
 // That is not a theoretical coupling. Measured on devnet 2026-09-17, consumer
-// arcade-us: 6,016 queue_full sheds against 4,145 subtree objects delivered —
+// arcade-us: 6,016 queue_full sheds against 4,145 subtree objects delivered:
 // the edge shedding the majority of a lane because THIS process was not
 // draining it. Every diagnostic on the edge pointed at a healthy fabric and a
 // slow subscriber, which was correct and useless: the cause was downstream
@@ -30,8 +30,8 @@ import (
 //
 // BOUNDED ON PURPOSE. An unbounded queue would convert downstream stall into
 // unbounded memory here, which is a worse failure than the one being fixed.
-// When it fills the drop is explicit, counted and logged HERE — the honest
-// place — instead of appearing as loss on the edge's socket where nothing can
+// When it fills the drop is explicit, counted and logged HERE, the honest
+// place, instead of appearing as loss on the edge's socket where nothing can
 // attribute it. This mirrors sdapool's split between a shed (the subscriber is
 // behind) and a drop (there is nowhere to put it).
 type announceQueue struct {

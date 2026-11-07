@@ -86,7 +86,7 @@ func blockFrame(t *testing.T, fill byte) []byte {
 
 // TestHandleSubtreeReannouncesAfterFailedAnnounce is the announce-failure
 // invariant: a failed announce must not poison the object's future. The cache
-// keeps the bytes either way — the retrieval plane still has to serve a pull —
+// keeps the bytes either way, the retrieval plane still has to serve a pull:
 // but only a SUCCESSFUL announce suppresses the next redelivery. Gating on the
 // cache instead left merkle-service permanently unaware of an object we held.
 func TestHandleSubtreeReannouncesAfterFailedAnnounce(t *testing.T) {

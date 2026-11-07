@@ -3,13 +3,13 @@
 // transactions up the consumer tunnel as one bare extended-format stream.
 //
 // Arcade broadcasts by POSTing concatenated raw transactions to every
-// datahub's /txs in parallel — O(N) unicast. Pointed at this facade instead,
+// datahub's /txs in parallel: O(N) unicast. Pointed at this facade instead,
 // one submit enters the fabric's open tx ingress and the fabric fans it to
 // every miner-tier consumer. The response contract is Teranode's own: HTTP
 // 200 accepts the whole batch; any other status may carry the structured
 // failure list ("Failed to process transactions:" + one
 // "<NAME> (<num>): [ProcessTransaction][<txid>] <message>" line per failed
-// tx), which arcade parses per-tx — absent from the list means accepted.
+// tx), which arcade parses per-tx: absent from the list means accepted.
 // Honouring that shape is what lets arcade's classifier, reaper and
 // wallet-visible rows behave exactly as they do against a real datahub.
 //
@@ -17,7 +17,7 @@
 // transaction is hydrated to EF before it is forwarded: source data comes
 // from the facade's recent-submission cache (children usually chain onto
 // parents this facade just forwarded), then an optional asset-API fallback.
-// A parent nowhere to be found fails that tx as TX_MISSING_PARENT — the same
+// A parent nowhere to be found fails that tx as TX_MISSING_PARENT, the same
 // verdict, with the same retry semantics, the real datahub would return.
 package facade
 
@@ -46,7 +46,7 @@ type Submitter interface {
 // txid when the recent-submission cache misses. nil disables the fallback.
 type ParentSource func(ctx context.Context, txid string) ([]byte, error)
 
-// Failure-list grammar constants — Teranode's /txs contract, which arcade
+// Failure-list grammar constants: Teranode's /txs contract, which arcade
 // parses (teranode/client.go parseTxsFailures at the pinned review SHA).
 const (
 	failureHeader = "Failed to process transactions:"
@@ -147,7 +147,7 @@ func (s *Server) handleTxs(w http.ResponseWriter, r *http.Request) {
 		if err != nil || n <= 0 {
 			// The stream is self-delimiting; a malformed transaction
 			// desynchronises everything behind it. One unkeyed line tells
-			// arcade the chunk cannot be settled whole — it narrows and
+			// arcade the chunk cannot be settled whole: it narrows and
 			// resubmits, exactly as it does against Teranode.
 			s.malformed.Add(1)
 			sawMalformed = true
@@ -172,7 +172,7 @@ func (s *Server) handleTxs(w http.ResponseWriter, r *http.Request) {
 		if err := s.sub.Submit(r.Context(), ef); err != nil {
 			// The up-tunnel is down: that is an endpoint condition, not a
 			// verdict about any transaction. A plain 503 with no failure
-			// list means "pure infra" to arcade — no per-tx vote, requeue.
+			// list means "pure infra" to arcade, no per-tx vote, requeue.
 			s.submitFailures.Add(1)
 			s.log.Warn("up-tunnel submit failed", "txid", txid, "err", err)
 			http.Error(w, "up-tunnel unavailable", http.StatusServiceUnavailable)
@@ -244,7 +244,7 @@ func (s *Server) ensureEF(ctx context.Context, tx *sdkTx.Transaction) (ef []byte
 	return ef, hydrated, nil
 }
 
-// txidKey returns the transaction id in wire order as the cache key — the
+// txidKey returns the transaction id in wire order as the cache key, the
 // same bytes a child's SourceTXID carries, so lookups need no reversal.
 func txidKey(tx *sdkTx.Transaction) [32]byte {
 	return [32]byte(*tx.TxID())
@@ -252,7 +252,7 @@ func txidKey(tx *sdkTx.Transaction) [32]byte {
 
 // AssetParentSource returns a ParentSource that fetches raw transactions
 // from a Teranode asset API base (including its /api/v1 prefix), with
-// bounded retry on 429 — the asset's heavy-rate limiter trips on bursts.
+// bounded retry on 429, the asset's heavy-rate limiter trips on bursts.
 func AssetParentSource(base string, client *http.Client) ParentSource {
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}

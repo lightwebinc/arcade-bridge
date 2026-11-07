@@ -194,10 +194,17 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 	})
 	t.Logf("MTS-02 Broadcaster's propagation reached the facade (%s accepted, %s sent up-tunnel) and the transaction lane delivered %s objects into Teranode",
 		delta(before.facadeAccepted, after.facadeAccepted), delta(before.uptunnelSent, after.uptunnelSent), delta(before.txLane, after.txLane))
-	waitFor(t, ctx, 90*time.Second, "Broadcaster status ACCEPTED_BY_NETWORK or later", func() bool {
-		s := arcadeStatus(t, ctx, e.arcade, fx.TxID).TxStatus
+	var accepted string
+	waitForSeen(t, ctx, 90*time.Second, "Broadcaster status ACCEPTED_BY_NETWORK or later", func() bool {
+		st, err := arcadeStatus(t, ctx, e.arcade, fx.TxID)
+		if err != nil {
+			accepted = err.Error()
+			return false
+		}
+		accepted = "status " + st.TxStatus
+		s := st.TxStatus
 		return s == "ACCEPTED_BY_NETWORK" || s == "SEEN_ON_NETWORK" || s == "SEEN_MULTIPLE_NODES" || s == "MINED"
-	})
+	}, func() string { return accepted })
 
 	// MTS-03: the mempool holds the transaction; mine one block.
 	waitFor(t, ctx, 60*time.Second, "the transaction in Teranode's mempool", func() bool {
@@ -246,10 +253,17 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 	// MTS-06: Broadcaster's proof reproduces the merkle root of the header read
 	// from Teranode.
 	var proof arcadeTx
-	waitFor(t, ctx, 240*time.Second, "Broadcaster status MINED with a merkle path", func() bool {
-		proof = arcadeStatus(t, ctx, e.arcade, fx.TxID)
-		return proof.TxStatus == "MINED" && proof.MerklePath != ""
-	})
+	var minedSeen string
+	waitForSeen(t, ctx, 240*time.Second, "Broadcaster status MINED with a merkle path", func() bool {
+		st, err := arcadeStatus(t, ctx, e.arcade, fx.TxID)
+		if err != nil {
+			minedSeen = err.Error()
+			return false
+		}
+		proof = st
+		minedSeen = fmt.Sprintf("status %s, merkle path %d characters", st.TxStatus, len(st.MerklePath))
+		return st.TxStatus == "MINED" && st.MerklePath != ""
+	}, func() string { return minedSeen })
 	if proof.BlockHash != block {
 		t.Fatalf("Broadcaster's proof names block %s, mined %s", proof.BlockHash, block)
 	}
@@ -347,14 +361,20 @@ type arcadeTx struct {
 	MerklePath string `json:"merklePath"`
 }
 
-func arcadeStatus(t *testing.T, ctx context.Context, base, txid string) arcadeTx {
+// arcadeStatus reads Broadcaster's GET /tx answer. A non-200 answer or a body
+// that does not decode is returned as the error, so a poll that times out can
+// say what Broadcaster last answered instead of only that it never matched.
+func arcadeStatus(t *testing.T, ctx context.Context, base, txid string) (arcadeTx, error) {
 	t.Helper()
 	var out arcadeTx
 	b, code := get(ctx, base+"/tx/"+txid)
-	if code == http.StatusOK {
-		_ = json.Unmarshal(b, &out)
+	if code != http.StatusOK {
+		return out, fmt.Errorf("GET /tx/%s: HTTP %d", txid, code)
 	}
-	return out
+	if err := json.Unmarshal(b, &out); err != nil {
+		return out, fmt.Errorf("GET /tx/%s: decode: %v", txid, err)
+	}
+	return out, nil
 }
 
 func rpc(ctx context.Context, e env, method string, params []any, target any) error {
@@ -479,6 +499,19 @@ func (s samples) sum(name, key, value string) float64 {
 
 func waitFor(t *testing.T, ctx context.Context, limit time.Duration, what string, ok func() bool) {
 	t.Helper()
+	waitForSeen(t, ctx, limit, what, ok, nil)
+}
+
+// waitForSeen is waitFor that, on failure, also reports the last observation
+// seen() returns.
+func waitForSeen(t *testing.T, ctx context.Context, limit time.Duration, what string, ok func() bool, seen func() string) {
+	t.Helper()
+	last := func() string {
+		if seen == nil {
+			return ""
+		}
+		return "; last seen: " + seen()
+	}
 	deadline := time.Now().Add(limit)
 	for time.Now().Before(deadline) {
 		if ok() {
@@ -486,11 +519,11 @@ func waitFor(t *testing.T, ctx context.Context, limit time.Duration, what string
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("waiting for %s: %v", what, ctx.Err())
+			t.Fatalf("waiting for %s: %v%s", what, ctx.Err(), last())
 		case <-time.After(time.Second):
 		}
 	}
-	t.Fatalf("timed out after %s waiting for %s", limit, what)
+	t.Fatalf("timed out after %s waiting for %s%s", limit, what, last())
 }
 
 func readJSON(t *testing.T, path string, v any) {

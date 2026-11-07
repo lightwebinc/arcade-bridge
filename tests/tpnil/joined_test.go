@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -45,7 +46,12 @@ type fixture struct {
 // running containers before the qualification and bound to it as a plan input.
 type profile struct {
 	Schema string `json:"schema"`
-	Arcade struct {
+	// ProofPath is "fabric" when Merkle Service's only announcement source is
+	// the bridge's lanes, or "stock" when no lane is provisioned to the bridge
+	// and Merkle Service keeps its own libp2p source.
+	ProofPath  string            `json:"proofPath"`
+	Components map[string]string `json:"components"`
+	Arcade     struct {
 		DatahubDiscovery bool     `json:"datahubDiscovery"`
 		DatahubURLs      []string `json:"datahubURLs"`
 		ConfigSHA256     string   `json:"configSha256"`
@@ -157,11 +163,22 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 		strings.TrimRight(p.Arcade.DatahubURLs[0], "/") != e.facade {
 		t.Fatalf("Broadcaster is not fabric-only: %+v", p.Arcade)
 	}
-	if p.MerkleService.DHTMode != "off" || p.MerkleService.MDNS {
+	fabricProof := p.ProofPath == "fabric"
+	if !fabricProof && p.ProofPath != "stock" {
+		t.Fatalf("profile proofPath %q, want fabric or stock", p.ProofPath)
+	}
+	if fabricProof && (p.MerkleService.DHTMode != "off" || p.MerkleService.MDNS || !strings.HasPrefix(p.MerkleService.BootstrapPeers, "/ip4/127.0.0.1/")) {
 		t.Fatalf("Merkle Service libp2p is not isolated: %+v", p.MerkleService)
 	}
+	for _, k := range sortedKeys(p.Components) {
+		t.Logf("environment: %s %s", k, p.Components[k])
+	}
 	before := read(t, ctx, e)
-	t.Logf("MTS-01 fabric-only configuration: Broadcaster's sole datahub is the facade, discovery and its p2p client are off; Merkle Service libp2p has DHT and mDNS off and an unreachable bootstrap peer")
+	if fabricProof {
+		t.Logf("MTS-01 fabric-only configuration: Broadcaster's sole datahub is the facade, discovery and its p2p client are off; Merkle Service libp2p has DHT and mDNS off and an unreachable bootstrap peer")
+	} else {
+		t.Logf("MTS-01 fabric-only broadcast: Broadcaster's sole datahub is the facade, discovery and its p2p client are off; Merkle Service keeps its stock libp2p source because no lane is provisioned to its bridge")
+	}
 
 	// MTS-02: submit through Broadcaster; its propagation reaches the facade and
 	// the transaction lane delivers into Teranode.
@@ -208,27 +225,13 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 	t.Logf("MTS-04 the mined transaction's raw bytes equal the fixture's raw bytes")
 
 	// MTS-05: the block's objects travel the reverse path and the lanes; the
-	// bridge's echo check confirms byte identity; Merkle Service hears nothing
-	// over libp2p.
-	waitFor(t, ctx, 180*time.Second, "the subtree and block objects on both bridges' lanes", func() bool {
-		after = read(t, ctx, e)
-		return after.reverseSubtrees > before.reverseSubtrees && after.reverseBlocks > before.reverseBlocks &&
-			after.arcadeSubtrees > before.arcadeSubtrees && after.arcadeBlocks > before.arcadeBlocks &&
-			after.announcedSubtrees > before.announcedSubtrees && after.announcedBlocks > before.announcedBlocks &&
-			after.echoVerified > before.echoVerified
-	})
-	if after.echoMismatch != before.echoMismatch {
-		t.Fatalf("echo mismatch: an object returned with different bytes (%s)", delta(before.echoMismatch, after.echoMismatch))
+	// bridge's echo check confirms byte identity where a lane returns them;
+	// Merkle Service hears nothing over libp2p. In the stock profile no lane
+	// reaches the Merkle Service bridge, so the requirement is not executed and
+	// the run records the stock source it used instead.
+	if fabricProof {
+		mts05Fabric(t, ctx, e, before)
 	}
-	if after.merkleP2P != before.merkleP2P {
-		t.Fatalf("Merkle Service received %s libp2p announcements; the run is not fabric-only", delta(before.merkleP2P, after.merkleP2P))
-	}
-	t.Logf("MTS-05 the reverse path published %s subtrees and %s blocks; they arrived on the Merkle Service bridge's lanes (%s subtrees, %s blocks) and were announced (%s, %s); %s echoes verified byte-identical with 0 mismatches; Merkle Service received 0 libp2p announcements",
-		delta(before.reverseSubtrees, after.reverseSubtrees), delta(before.reverseBlocks, after.reverseBlocks),
-		delta(before.arcadeSubtrees, after.arcadeSubtrees), delta(before.arcadeBlocks, after.arcadeBlocks),
-		delta(before.announcedSubtrees, after.announcedSubtrees), delta(before.announcedBlocks, after.announcedBlocks),
-		delta(before.echoVerified, after.echoVerified))
-
 	// MTS-06: Broadcaster's proof reproduces the merkle root of the header read
 	// from Teranode.
 	var proof arcadeTx
@@ -260,6 +263,14 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 		t.Fatalf("proof root %s, header root %s", root, headerRoot)
 	}
 	t.Logf("MTS-06 Broadcaster returned a mined proof whose computed root %s equals the merkle root of block %s's header", root, block)
+	if !fabricProof {
+		now := read(t, ctx, e)
+		if now.merkleP2P <= before.merkleP2P {
+			t.Fatalf("stock profile: Merkle Service recorded no libp2p announcement, so the proof source is unknown")
+		}
+		t.Logf("MTS-05 not executed: no subtree or block lane is provisioned to the Merkle Service bridge; Merkle Service took the block from its stock libp2p source (%s announcements during the run); the reverse path published %s subtrees and %s blocks to the fabric",
+			delta(before.merkleP2P, now.merkleP2P), delta(before.reverseSubtrees, now.reverseSubtrees), delta(before.reverseBlocks, now.reverseBlocks))
+	}
 
 	// MTS-07: the header lane, read from a header store it feeds, when one is
 	// configured. The store indexes each lane header by the hash of its bytes.
@@ -467,4 +478,36 @@ func displayHex(b []byte) string {
 		r[i] = b[len(b)-1-i]
 	}
 	return hex.EncodeToString(r)
+}
+
+// mts05Fabric is MTS-05 in the fabric profile.
+func mts05Fabric(t *testing.T, ctx context.Context, e env, before counters) {
+	t.Helper()
+	var after counters
+	waitFor(t, ctx, 180*time.Second, "the subtree and block objects on the Merkle Service bridge's lanes", func() bool {
+		after = read(t, ctx, e)
+		return after.reverseSubtrees > before.reverseSubtrees && after.reverseBlocks > before.reverseBlocks &&
+			after.arcadeSubtrees > before.arcadeSubtrees && after.arcadeBlocks > before.arcadeBlocks &&
+			after.announcedSubtrees > before.announcedSubtrees && after.announcedBlocks > before.announcedBlocks
+	})
+	if after.echoMismatch != before.echoMismatch {
+		t.Fatalf("echo mismatch: an object returned with different bytes (%s)", delta(before.echoMismatch, after.echoMismatch))
+	}
+	if after.merkleP2P != before.merkleP2P {
+		t.Fatalf("Merkle Service received %s libp2p announcements; the run is not fabric-only", delta(before.merkleP2P, after.merkleP2P))
+	}
+	t.Logf("MTS-05 the reverse path published %s subtrees and %s blocks; they arrived on the Merkle Service bridge's lanes (%s subtrees, %s blocks) and were announced (%s, %s); %s echoes verified byte-identical with 0 mismatches; Merkle Service received 0 libp2p announcements",
+		delta(before.reverseSubtrees, after.reverseSubtrees), delta(before.reverseBlocks, after.reverseBlocks),
+		delta(before.arcadeSubtrees, after.arcadeSubtrees), delta(before.arcadeBlocks, after.arcadeBlocks),
+		delta(before.announcedSubtrees, after.announcedSubtrees), delta(before.announcedBlocks, after.announcedBlocks),
+		delta(before.echoVerified, after.echoVerified))
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

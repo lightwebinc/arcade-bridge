@@ -69,27 +69,27 @@ func main() {
 
 		retrievalListen = flag.String("retrieval-listen", "[::]:9165", "retrieval plane listen address")
 		apiPrefix       = flag.String("api-prefix", "/api/v1", "path prefix for the retrieval plane; must match what is announced")
-		advertise       = flag.String("advertise", "", "base URL merkle-service should fetch from, e.g. http://192.0.2.10:9165 (required unless -mode sink). merkle-service appends /subtree/{hash} and /block/{hash} to <advertise><api-prefix>. Containers cannot dial loopback or v6-only addresses — use the host's IPv4 the containers can reach")
+		advertise       = flag.String("advertise", "", "base URL merkle-service should fetch from, e.g. http://192.0.2.10:9165 (required unless -mode sink). merkle-service appends /subtree/{hash} and /block/{hash} to <advertise><api-prefix>. Containers cannot dial loopback or v6-only addresses; use the host's IPv4 the containers can reach")
 
 		kafkaBrokers = flag.String("kafka", "", "merkle-service Kafka bootstrap (comma-separated host:port; required unless -mode sink). Remember the EXTERNAL advertised-listener rule: the broker must advertise an address this process can dial back")
 		subtreeTopic = flag.String("subtree-topic", "subtree", "merkle-service subtree topic")
 		blockTopic   = flag.String("block-topic", "block", "merkle-service block topic")
-		peerID       = flag.String("peer-id", "arcade-bridge", "peer label stamped on announcements. merkle-service keys its per-peer fetch-health breaker on it; it is never dialed. Keep it STABLE — a changing id resets breaker history")
+		peerID       = flag.String("peer-id", "arcade-bridge", "peer label stamped on announcements. merkle-service keys its per-peer fetch-health breaker on it; it is never dialed. Keep it STABLE; a changing id resets breaker history")
 		clientName   = flag.String("client-name", "arcade-bridge", "clientName stamped on announcements")
 
 		cacheBytes = flag.Int64("cache-bytes", 1<<30, "object cache ceiling in bytes")
 
-		announceQueueDepth = flag.Int("announce-queue", 4096, "pending merkle-service announcements held off the lane read loop. The lane calls Handle inline, so announcing synchronously stops the socket draining and the EDGE sheds the lane (measured: 6,016 shed vs 4,145 delivered). 0 disables the queue and announces inline — diagnostic only")
+		announceQueueDepth = flag.Int("announce-queue", 4096, "pending merkle-service announcements held off the lane read loop. The lane calls Handle inline, so announcing synchronously stops the socket draining and the EDGE sheds the lane (measured: 6,016 shed vs 4,145 delivered). 0 disables the queue and announces inline; diagnostic only")
 		announceWorkers    = flag.Int("announce-workers", 4, "workers draining the announce queue. >1 because a single Kafka produce is latency-bound, not CPU-bound; merkle-service dedups by hash so ordering across objects is not load-bearing")
 		cacheTTL           = flag.Duration("cache-ttl", 30*time.Minute, "how long a pushed object stays fetchable. Must comfortably exceed merkle-service's worst-case Kafka consumer lag: a fetch after expiry is an honest 404 that its stale-announcement grace then has to excuse")
 		maxObject          = flag.Int("max-object", 0, "per-object size ceiling (0 = codec default)")
 
 		facadeListen = flag.String("facade-listen", "[::]:9166", "propagation facade listen address (POST /txs, /tx, GET /health); started only when -edge-ingress is set")
-		edgeIngress  = flag.String("edge-ingress", "", "up-tunnel tx submit host(s), reachable only through the tunnel; comma-separated failover list — with a dual-homed tunnel, the side-A and side-B slot inners")
+		edgeIngress  = flag.String("edge-ingress", "", "up-tunnel tx submit host(s), reachable only through the tunnel; comma-separated failover list; with a dual-homed tunnel, the side-A and side-B slot inners")
 		edgeTxPort   = flag.Int("edge-tx-port", 8725, "edge ingress port for the bare EF tx stream (open class)")
 		hydrateAsset = flag.String("hydrate-asset", "", "optional asset API base incl. prefix (e.g. http://192.0.2.10:20090/api/v1) used to fetch parents the recent-submission cache misses")
 
-		mode        = flag.String("mode", "all", "all = receive + cache + serve + announce; sink = receive, count and serve only (no Kafka) — lane burn-in before the stack attaches")
+		mode        = flag.String("mode", "all", "all = receive + cache + serve + announce; sink = receive, count and serve only (no Kafka); lane burn-in before the stack attaches")
 		metricsAddr = flag.String("metrics-addr", "[::]:9167", "HTTP listener for /metrics, /healthz, /readyz (empty = off)")
 		statsEvery  = flag.Duration("stats-every", time.Minute, "interval between stats lines (0 = off)")
 	)

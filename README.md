@@ -8,8 +8,8 @@
 
 > Part of the [**BSV Layered Multicast**](https://github.com/lightwebinc/bsv-multicast) open-source project. See the main repository for the full architecture, design docs, and BRC specifications.
 
-A landing-tier bridge that runs an **unmodified
-[Arcade v2](https://github.com/bsv-blockchain/arcade) +
+A landing-tier bridge that runs an **unmodified BSV Broadcaster
+([Arcade v2](https://github.com/bsv-blockchain/arcade)) +
 [merkle-service](https://github.com/bsv-blockchain/merkle-service) stack with a
 multicast delivery fabric as its transport.**
 
@@ -115,7 +115,7 @@ and the retrieval plane is listening. See the
 A Kubernetes Helm chart is published from a dedicated chart repository:
 
 - Repository: [`charts/arcade-bridge`](https://github.com/lightwebinc/charts/tree/main/charts/arcade-bridge)
-- OCI: `helm install bridge oci://ghcr.io/lightwebinc/charts/arcade-bridge --version 0.1.2`
+- OCI: `helm install bridge oci://ghcr.io/lightwebinc/charts/arcade-bridge --version 0.1.3`
 
 `config.advertise` and `config.kafka` are effectively required unless
 `config.mode=sink`; setting `config.edgeIngress` turns the facade on. See the

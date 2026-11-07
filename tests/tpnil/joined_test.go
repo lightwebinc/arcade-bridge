@@ -220,7 +220,19 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 		if err := rpc(ctx, e, "generatetoaddress", []any{1, e.mineTo}, &blocks); err != nil || len(blocks) != 1 {
 			t.Fatalf("mine one block: %v (%d blocks)", err, len(blocks))
 		}
-		if st := subtreeHolding(t, ctx, e.asset, blocks[0], fx.TxID); st != "" {
+		// The asset interface may not have indexed a block the instant it is
+		// mined, so a non-200 or undecodable answer is retried, not fatal.
+		var st, seen string
+		waitForSeen(t, ctx, 30*time.Second, "block "+blocks[0]+" in the asset interface", func() bool {
+			got, err := subtreeHolding(ctx, e.asset, blocks[0], fx.TxID)
+			if err != nil {
+				seen = err.Error()
+				return false
+			}
+			st = got
+			return true
+		}, func() string { return seen })
+		if st != "" {
 			block, subtree = blocks[0], st
 		}
 	}
@@ -319,22 +331,24 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 }
 
 // subtreeHolding returns the subtree of block that lists txid, or "".
-func subtreeHolding(t *testing.T, ctx context.Context, asset, block, txid string) string {
-	t.Helper()
+// subtreeHolding returns the subtree of the block that lists txid, or "" when
+// the block lists it in none. An answer the asset interface could not give yet
+// (non-200, or a body that does not decode) is the error, for the caller to retry.
+func subtreeHolding(ctx context.Context, asset, block, txid string) (string, error) {
 	b, code := get(ctx, asset+"/block/"+block+"/json")
 	if code != http.StatusOK {
-		t.Fatalf("asset block %s: HTTP %d", block, code)
+		return "", fmt.Errorf("asset block %s: HTTP %d", block, code)
 	}
 	var blk struct {
 		Subtrees []string `json:"subtrees"`
 	}
 	if err := json.Unmarshal(b, &blk); err != nil {
-		t.Fatalf("asset block %s: %v", block, err)
+		return "", fmt.Errorf("asset block %s: %v", block, err)
 	}
 	for _, st := range blk.Subtrees {
 		b, code := get(ctx, asset+"/subtree/"+st+"/json")
 		if code != http.StatusOK {
-			t.Fatalf("asset subtree %s: HTTP %d", st, code)
+			return "", fmt.Errorf("asset subtree %s: HTTP %d", st, code)
 		}
 		var sub struct {
 			Data struct {
@@ -344,15 +358,15 @@ func subtreeHolding(t *testing.T, ctx context.Context, asset, block, txid string
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(b, &sub); err != nil {
-			t.Fatalf("asset subtree %s: %v", st, err)
+			return "", fmt.Errorf("asset subtree %s: %v", st, err)
 		}
 		for _, n := range sub.Data.Nodes {
 			if n.TxID == txid {
-				return st
+				return st, nil
 			}
 		}
 	}
-	return ""
+	return "", nil
 }
 
 type arcadeTx struct {

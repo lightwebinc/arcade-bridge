@@ -67,7 +67,7 @@ type profile struct {
 type env struct {
 	fixture, profile                     string
 	arcade, facade                       string
-	rpc, rpcUser, rpcPass, mineTo        string
+	rpc, rpcUser, rpcPass, mineTo, asset string
 	arcadeBridge, teranodeBridge, merkle string
 	headerLane                           string
 }
@@ -90,6 +90,7 @@ func readEnv(t *testing.T) env {
 		rpcUser:        get("TPNIL_TERANODE_RPC_USER", true),
 		rpcPass:        get("TPNIL_TERANODE_RPC_PASSWORD", true),
 		mineTo:         get("TPNIL_MINE_ADDRESS", true),
+		asset:          strings.TrimRight(get("TPNIL_TERANODE_ASSET_URL", true), "/"),
 		arcadeBridge:   get("TPNIL_ARCADE_BRIDGE_METRICS", true),
 		teranodeBridge: get("TPNIL_TERANODE_BRIDGE_METRICS", true),
 		merkle:         get("TPNIL_MERKLE_METRICS", true),
@@ -203,20 +204,30 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 		var ids []string
 		return rpc(ctx, e, "getrawmempool", nil, &ids) == nil && contains(ids, fx.TxID)
 	})
-	var blocks []string
-	if err := rpc(ctx, e, "generatetoaddress", []any{1, e.mineTo}, &blocks); err != nil || len(blocks) != 1 {
-		t.Fatalf("mine one block: %v (%d blocks)", err, len(blocks))
+	// Teranode's block reply lists subtrees, not transactions, so inclusion is
+	// read from the asset interface's subtree listing; a transaction that
+	// reached the mempool after the candidate was cut goes in the next block.
+	block, subtree := "", ""
+	for attempt := 0; attempt < 3 && block == ""; attempt++ {
+		var blocks []string
+		if err := rpc(ctx, e, "generatetoaddress", []any{1, e.mineTo}, &blocks); err != nil || len(blocks) != 1 {
+			t.Fatalf("mine one block: %v (%d blocks)", err, len(blocks))
+		}
+		if st := subtreeHolding(t, ctx, e.asset, blocks[0], fx.TxID); st != "" {
+			block, subtree = blocks[0], st
+		}
 	}
-	block := blocks[0]
+	if block == "" {
+		t.Fatalf("transaction %s is in none of the three blocks mined", fx.TxID)
+	}
 	var mined struct {
-		TxID      string `json:"txid"`
-		Hex       string `json:"hex"`
-		BlockHash string `json:"blockhash"`
+		TxID string `json:"txid"`
+		Hex  string `json:"hex"`
 	}
-	waitFor(t, ctx, 60*time.Second, "the transaction recorded in the mined block", func() bool {
-		return rpc(ctx, e, "getrawtransaction", []any{fx.TxID, 1}, &mined) == nil && mined.BlockHash == block
-	})
-	t.Logf("MTS-03 Teranode accepted transaction %s into its mempool and mined it in block %s", fx.TxID, block)
+	if err := rpc(ctx, e, "getrawtransaction", []any{fx.TxID, 1}, &mined); err != nil {
+		t.Fatalf("getrawtransaction: %v", err)
+	}
+	t.Logf("MTS-03 Teranode accepted transaction %s into its mempool and mined it in block %s (subtree %s)", fx.TxID, block, subtree)
 
 	// MTS-04: byte identity of the mined transaction.
 	if mined.TxID != fx.TxID || mined.Hex != fx.RawHex {
@@ -291,6 +302,43 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 		t.Fatalf("header lane merkle root %s, Teranode header root %s", lane.MerkleRoot, displayHex(header[36:68]))
 	}
 	t.Logf("MTS-07 the header lane's store holds block %s at height %d with merkle root %s, equal to Teranode's header", block, lane.Height, lane.MerkleRoot)
+}
+
+// subtreeHolding returns the subtree of block that lists txid, or "".
+func subtreeHolding(t *testing.T, ctx context.Context, asset, block, txid string) string {
+	t.Helper()
+	b, code := get(ctx, asset+"/block/"+block+"/json")
+	if code != http.StatusOK {
+		t.Fatalf("asset block %s: HTTP %d", block, code)
+	}
+	var blk struct {
+		Subtrees []string `json:"subtrees"`
+	}
+	if err := json.Unmarshal(b, &blk); err != nil {
+		t.Fatalf("asset block %s: %v", block, err)
+	}
+	for _, st := range blk.Subtrees {
+		b, code := get(ctx, asset+"/subtree/"+st+"/json")
+		if code != http.StatusOK {
+			t.Fatalf("asset subtree %s: HTTP %d", st, code)
+		}
+		var sub struct {
+			Data struct {
+				Nodes []struct {
+					TxID string `json:"txid"`
+				} `json:"Nodes"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(b, &sub); err != nil {
+			t.Fatalf("asset subtree %s: %v", st, err)
+		}
+		for _, n := range sub.Data.Nodes {
+			if n.TxID == txid {
+				return st
+			}
+		}
+	}
+	return ""
 }
 
 type arcadeTx struct {

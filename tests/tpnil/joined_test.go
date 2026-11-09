@@ -70,6 +70,13 @@ type env struct {
 	rpc, rpcUser, rpcPass, mineTo, asset string
 	arcadeBridge, teranodeBridge, merkle string
 	headerLane                           string
+	// Lane byte identity, optional: the host interface of the fabric network,
+	// the transaction lane's port and the container at its far end, the
+	// processor bridge (MTS-02); and the proof bridge's retrieval plane, the
+	// datahub Merkle Service fetches from (MTS-05).
+	txLaneIface, txLaneContainer string
+	txLanePort                   int
+	retrieval                    string
 }
 
 func readEnv(t *testing.T) env {
@@ -81,21 +88,50 @@ func readEnv(t *testing.T) env {
 		}
 		return v
 	}
-	return env{
-		fixture:        get("TPNIL_FIXTURE", true),
-		profile:        get("TPNIL_PROFILE", true),
-		arcade:         strings.TrimRight(get("TPNIL_ARCADE_URL", true), "/"),
-		facade:         strings.TrimRight(get("TPNIL_FACADE_URL", true), "/"),
-		rpc:            get("TPNIL_TERANODE_RPC_URL", true),
-		rpcUser:        get("TPNIL_TERANODE_RPC_USER", true),
-		rpcPass:        get("TPNIL_TERANODE_RPC_PASSWORD", true),
-		mineTo:         get("TPNIL_MINE_ADDRESS", true),
-		asset:          strings.TrimRight(get("TPNIL_TERANODE_ASSET_URL", true), "/"),
-		arcadeBridge:   get("TPNIL_ARCADE_BRIDGE_METRICS", true),
-		teranodeBridge: get("TPNIL_TERANODE_BRIDGE_METRICS", true),
-		merkle:         get("TPNIL_MERKLE_METRICS", true),
-		headerLane:     strings.TrimRight(get("TPNIL_HEADER_LANE_URL", false), "/"),
+	e := env{
+		fixture:         get("TPNIL_FIXTURE", true),
+		profile:         get("TPNIL_PROFILE", true),
+		arcade:          strings.TrimRight(get("TPNIL_ARCADE_URL", true), "/"),
+		facade:          strings.TrimRight(get("TPNIL_FACADE_URL", true), "/"),
+		rpc:             get("TPNIL_TERANODE_RPC_URL", true),
+		rpcUser:         get("TPNIL_TERANODE_RPC_USER", true),
+		rpcPass:         get("TPNIL_TERANODE_RPC_PASSWORD", true),
+		mineTo:          get("TPNIL_MINE_ADDRESS", true),
+		asset:           strings.TrimRight(get("TPNIL_TERANODE_ASSET_URL", true), "/"),
+		arcadeBridge:    get("TPNIL_ARCADE_BRIDGE_METRICS", true),
+		teranodeBridge:  get("TPNIL_TERANODE_BRIDGE_METRICS", true),
+		merkle:          get("TPNIL_MERKLE_METRICS", true),
+		headerLane:      strings.TrimRight(get("TPNIL_HEADER_LANE_URL", false), "/"),
+		txLaneIface:     get("TPNIL_TX_LANE_IFACE", false),
+		txLaneContainer: get("TPNIL_TX_LANE_CONTAINER", false),
+		txLanePort:      port(t, get("TPNIL_TX_LANE_PORT", false)),
+		retrieval:       strings.TrimRight(get("TPNIL_PROOF_BRIDGE_RETRIEVAL_URL", false), "/"),
 	}
+	// The capture needs all three settings: a partial set is a misconfigured
+	// plan, not a reason to skip the check.
+	if set := btoi(e.txLaneIface != "") + btoi(e.txLanePort != 0) + btoi(e.txLaneContainer != ""); set != 0 && set != 3 {
+		t.Fatalf("TPNIL_TX_LANE_IFACE, TPNIL_TX_LANE_PORT and TPNIL_TX_LANE_CONTAINER must be set together (%d of 3 set)", set)
+	}
+	return e
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func port(t *testing.T, v string) int {
+	t.Helper()
+	if v == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 || n > 65535 {
+		t.Fatalf("TPNIL_TX_LANE_PORT %q is not a port", v)
+	}
+	return n
 }
 
 // counters is one reading of every series the qualification compares.
@@ -183,6 +219,10 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 
 	// MTS-02: submit through Broadcaster; its propagation reaches the facade and
 	// the transaction lane delivers into Teranode.
+	var capture *laneCapture
+	if e.txLaneIface != "" && e.txLanePort != 0 && e.txLaneContainer != "" {
+		capture = startLaneCapture(t, e.txLaneIface, e.txLanePort, containerAddrs(t, e.txLaneContainer))
+	}
 	status := post(t, ctx, e.arcade+"/tx", "application/octet-stream", ef)
 	if status/100 != 2 {
 		t.Fatalf("Broadcaster POST /tx: HTTP %d", status)
@@ -194,6 +234,11 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 	})
 	t.Logf("MTS-02 Broadcaster's propagation reached the facade (%s accepted, %s sent up-tunnel) and the transaction lane delivered %s objects into Teranode",
 		delta(before.facadeAccepted, after.facadeAccepted), delta(before.uptunnelSent, after.uptunnelSent), delta(before.txLane, after.txLane))
+	if capture != nil {
+		mts02LaneBytes(t, capture.stop(t), ef)
+	} else {
+		t.Logf("MTS-02 lane bytes not observed: no transaction lane capture configured")
+	}
 	var accepted string
 	waitForSeen(t, ctx, 90*time.Second, "Broadcaster status ACCEPTED_BY_NETWORK or later", func() bool {
 		st, err := arcadeStatus(t, ctx, e.arcade, fx.TxID)
@@ -261,6 +306,11 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 	// the run records the stock source it used instead.
 	if fabricProof {
 		mts05Fabric(t, ctx, e, before)
+		if e.retrieval != "" {
+			mts05LaneBytes(t, ctx, e, block, subtree)
+		} else {
+			t.Logf("MTS-05 lane bytes not observed: no proof bridge retrieval plane configured")
+		}
 	}
 	// MTS-06: Broadcaster's proof reproduces the merkle root of the header read
 	// from Teranode.
@@ -605,4 +655,64 @@ func sortedKeys(m map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// mts02LaneBytes requires every connection the transaction lane carried while
+// the capture ran to be whole, identical copies of the fixture's Extended
+// Format bytes, and at least one copy in all.
+func mts02LaneBytes(t *testing.T, flows []flowStream, ef []byte) {
+	t.Helper()
+	copies := 0
+	var seen []string
+	for _, f := range flows {
+		seen = append(seen, fmt.Sprintf("%s: %d bytes, sha256 %s...", f.flow, len(f.bytes), digest(f.bytes)))
+		if len(f.bytes)%len(ef) != 0 {
+			t.Fatalf("the transaction lane carried bytes other than the fixture's Extended Format (%d bytes, sha256 %s...): %s",
+				len(ef), digest(ef), strings.Join(seen, "; "))
+		}
+		for i := 0; i < len(f.bytes); i += len(ef) {
+			if !bytes.Equal(f.bytes[i:i+len(ef)], ef) {
+				t.Fatalf("the transaction lane carried %d bytes that differ from the fixture's Extended Format (sha256 %s...): %s",
+					len(ef), digest(ef), strings.Join(seen, "; "))
+			}
+			copies++
+		}
+	}
+	if copies == 0 {
+		t.Fatalf("the transaction lane carried no bytes while the capture ran")
+	}
+	t.Logf("MTS-02 the transaction lane carried the fixture's Extended Format bytes exactly: %d bytes, sha256 %s..., %d copies on %d connections, captured on the fabric network between the delivery edge and the processor bridge",
+		len(ef), digest(ef), copies, len(flows))
+}
+
+// mts05LaneBytes requires the objects the proof bridge serves Merkle Service,
+// which it holds only from its subtree and block lanes, to be byte-identical
+// to the processor's own: the same route on the bridge's retrieval plane and on
+// Teranode's asset service.
+func mts05LaneBytes(t *testing.T, ctx context.Context, e env, block, subtree string) {
+	t.Helper()
+	var parts []string
+	for _, o := range []struct{ class, hash string }{{"subtree", subtree}, {"block", block}} {
+		var fromBridge []byte
+		var seen string
+		waitForSeen(t, ctx, 60*time.Second, "the "+o.class+" on the proof bridge's retrieval plane", func() bool {
+			b, err := fetchObject(ctx, e.retrieval+"/"+o.class+"/"+o.hash)
+			if err != nil {
+				seen = err.Error()
+				return false
+			}
+			fromBridge = b
+			return true
+		}, func() string { return seen })
+		fromProcessor, err := fetchObject(ctx, e.asset+"/"+o.class+"/"+o.hash)
+		if err != nil {
+			t.Fatalf("the processor's %s: %v", o.class, err)
+		}
+		if !bytes.Equal(fromBridge, fromProcessor) {
+			t.Fatalf("%s %s: the proof bridge serves %d bytes (sha256 %s...), the processor %d bytes (sha256 %s...)",
+				o.class, o.hash, len(fromBridge), digest(fromBridge), len(fromProcessor), digest(fromProcessor))
+		}
+		parts = append(parts, fmt.Sprintf("%s %s (%d bytes, sha256 %s...)", o.class, o.hash, len(fromBridge), digest(fromBridge)))
+	}
+	t.Logf("MTS-05 the subtree and block lanes delivered the processor's bytes: the proof bridge, which holds them only from its lanes, serves %s, byte-identical to the processor's asset service", strings.Join(parts, " and "))
 }

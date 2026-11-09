@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,11 +27,17 @@ import (
 // laneCapture records one direction of a lane's TCP stream from outside both
 // ends: tcpdump on the host side of the fabric network, filtered to segments
 // sent to the lane's port. A lane carries whole objects back to back with no
-// framing of its own, so the reassembled stream is exactly the bytes the lane
-// delivered while the capture ran.
+// framing of its own, so each connection's reassembled stream is exactly the
+// bytes the lane delivered on it while the capture ran.
+//
+// tcpdump runs as root under sudo, so it is signaled directly, matched by its
+// own capture file (a signal to sudo is not always relayed, and SIGKILL never
+// is), and every wait for it is bounded.
 type laneCapture struct {
-	cmd  *exec.Cmd
-	file string
+	file   string
+	done   chan struct{} // closed when tcpdump and sudo have exited
+	stderr string        // tcpdump's messages, set before done closes
+	ended  bool
 }
 
 // startLaneCapture starts tcpdump on iface for TCP segments to port at any of
@@ -38,14 +45,13 @@ type laneCapture struct {
 // joined configuration already does.
 func startLaneCapture(t *testing.T, iface string, port int, hosts []string) *laneCapture {
 	t.Helper()
-	dir := t.TempDir()
-	file := filepath.Join(dir, "lane.pcap")
+	c := &laneCapture{file: filepath.Join(t.TempDir(), "lane.pcap"), done: make(chan struct{})}
 	filter := "tcp dst port " + strconv.Itoa(port)
 	if len(hosts) > 0 {
 		filter += " and (dst host " + strings.Join(hosts, " or dst host ") + ")"
 	}
 	cmd := exec.Command("sudo", "-n", "tcpdump", "-i", iface, "-U", "-n", "-s", "0", "-Z", "root",
-		"-w", file, filter)
+		"-w", c.file, filter)
 	errOut, err := cmd.StderrPipe()
 	if err != nil {
 		t.Fatalf("lane capture: %v", err)
@@ -53,8 +59,9 @@ func startLaneCapture(t *testing.T, iface string, port int, hosts []string) *lan
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("lane capture: %v", err)
 	}
-	// tcpdump reports "listening on" once the capture is armed.
-	armed, said := make(chan struct{}), make(chan string, 1)
+	// tcpdump reports "listening on" once the capture is armed. The reader
+	// reaches EOF only when tcpdump has exited, then reaps sudo.
+	armed := make(chan struct{})
 	go func() {
 		var all []string
 		ready := false
@@ -66,21 +73,54 @@ func startLaneCapture(t *testing.T, iface string, port int, hosts []string) *lan
 				close(armed)
 			}
 		}
-		said <- strings.Join(all, "; ")
+		_ = cmd.Wait()
+		c.stderr = strings.Join(all, "; ")
+		close(c.done)
 	}()
+	t.Cleanup(func() { c.end(t) })
 	select {
 	case <-armed:
+	case <-c.done:
+		t.Fatalf("lane capture on %s exited before it started: %s", iface, c.stderr)
 	case <-time.After(10 * time.Second):
-		_ = cmd.Process.Kill()
-		t.Fatalf("lane capture on %s did not start: %s", iface, <-said)
-	}
-	t.Cleanup(func() {
-		if cmd.ProcessState == nil {
-			_ = cmd.Process.Signal(os.Interrupt)
-			_ = cmd.Wait()
+		c.end(t)
+		said := "tcpdump did not exit"
+		select {
+		case <-c.done:
+			said = c.stderr
+		default:
 		}
-	})
-	return &laneCapture{cmd: cmd, file: file}
+		t.Fatalf("lane capture on %s did not start in 10 s: %s", iface, said)
+	}
+	return c
+}
+
+// signal sends sig to this capture's tcpdump. The pattern's bracket keeps it
+// from matching the pkill and sudo command lines that carry it.
+func (c *laneCapture) signal(sig string) {
+	_ = exec.Command("sudo", "-n", "pkill", "-"+sig, "-f", "[t]cpdump .*-w "+regexp.QuoteMeta(c.file)).Run()
+}
+
+// end stops tcpdump once: an interrupt, so it flushes its file, then a kill if
+// it has not exited in 10 s. It fails the test if tcpdump is still running.
+func (c *laneCapture) end(t *testing.T) {
+	t.Helper()
+	if c.ended {
+		return
+	}
+	c.ended = true
+	for _, step := range []struct {
+		sig  string
+		wait time.Duration
+	}{{"INT", 10 * time.Second}, {"KILL", 5 * time.Second}} {
+		c.signal(step.sig)
+		select {
+		case <-c.done:
+			return
+		case <-time.After(step.wait):
+		}
+	}
+	t.Errorf("lane capture: tcpdump writing %s did not exit", c.file)
 }
 
 // stop ends the capture and returns the reassembled stream of each TCP
@@ -88,8 +128,7 @@ func startLaneCapture(t *testing.T, iface string, port int, hosts []string) *lan
 func (c *laneCapture) stop(t *testing.T) []flowStream {
 	t.Helper()
 	time.Sleep(time.Second) // segments already on the wire reach the file
-	_ = c.cmd.Process.Signal(os.Interrupt)
-	_ = c.cmd.Wait()
+	c.end(t)
 	raw, err := os.ReadFile(c.file)
 	if err != nil {
 		t.Fatalf("lane capture: %v", err)

@@ -88,7 +88,7 @@ func readEnv(t *testing.T) env {
 		}
 		return v
 	}
-	return env{
+	e := env{
 		fixture:         get("TPNIL_FIXTURE", true),
 		profile:         get("TPNIL_PROFILE", true),
 		arcade:          strings.TrimRight(get("TPNIL_ARCADE_URL", true), "/"),
@@ -107,6 +107,19 @@ func readEnv(t *testing.T) env {
 		txLanePort:      port(t, get("TPNIL_TX_LANE_PORT", false)),
 		retrieval:       strings.TrimRight(get("TPNIL_PROOF_BRIDGE_RETRIEVAL_URL", false), "/"),
 	}
+	// The capture needs all three settings: a partial set is a misconfigured
+	// plan, not a reason to skip the check.
+	if set := btoi(e.txLaneIface != "") + btoi(e.txLanePort != 0) + btoi(e.txLaneContainer != ""); set != 0 && set != 3 {
+		t.Fatalf("TPNIL_TX_LANE_IFACE, TPNIL_TX_LANE_PORT and TPNIL_TX_LANE_CONTAINER must be set together (%d of 3 set)", set)
+	}
+	return e
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func port(t *testing.T, v string) int {

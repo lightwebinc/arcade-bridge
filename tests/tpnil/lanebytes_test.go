@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -32,14 +33,19 @@ type laneCapture struct {
 	file string
 }
 
-// startLaneCapture starts tcpdump on iface for TCP segments to port. It needs
-// passwordless sudo, as the joined configuration already does.
-func startLaneCapture(t *testing.T, iface string, port int) *laneCapture {
+// startLaneCapture starts tcpdump on iface for TCP segments to port at any of
+// hosts (every host when hosts is empty). It needs passwordless sudo, as the
+// joined configuration already does.
+func startLaneCapture(t *testing.T, iface string, port int, hosts []string) *laneCapture {
 	t.Helper()
 	dir := t.TempDir()
 	file := filepath.Join(dir, "lane.pcap")
+	filter := "tcp dst port " + strconv.Itoa(port)
+	if len(hosts) > 0 {
+		filter += " and (dst host " + strings.Join(hosts, " or dst host ") + ")"
+	}
 	cmd := exec.Command("sudo", "-n", "tcpdump", "-i", iface, "-U", "-n", "-s", "0", "-Z", "root",
-		"-w", file, "tcp", "dst", "port", strconv.Itoa(port))
+		"-w", file, filter)
 	errOut, err := cmd.StderrPipe()
 	if err != nil {
 		t.Fatalf("lane capture: %v", err)
@@ -77,8 +83,9 @@ func startLaneCapture(t *testing.T, iface string, port int) *laneCapture {
 	return &laneCapture{cmd: cmd, file: file}
 }
 
-// stop ends the capture and returns the reassembled stream.
-func (c *laneCapture) stop(t *testing.T) []byte {
+// stop ends the capture and returns the reassembled stream of each TCP
+// connection it saw, in order of first appearance.
+func (c *laneCapture) stop(t *testing.T) []flowStream {
 	t.Helper()
 	time.Sleep(time.Second) // segments already on the wire reach the file
 	_ = c.cmd.Process.Signal(os.Interrupt)
@@ -87,22 +94,30 @@ func (c *laneCapture) stop(t *testing.T) []byte {
 	if err != nil {
 		t.Fatalf("lane capture: %v", err)
 	}
-	stream, err := tcpStream(raw)
+	flows, err := tcpStreams(raw)
 	if err != nil {
 		t.Fatalf("lane capture: %v", err)
 	}
-	return stream
+	return flows
+}
+
+// flowStream is one TCP connection's reassembled payload.
+type flowStream struct {
+	flow  string // source address and port
+	bytes []byte
 }
 
 type segment struct {
+	flow    string
 	seq     uint32
 	payload []byte
 }
 
-// tcpStream reassembles the TCP payload of a classic pcap file holding one
-// direction of one connection on Ethernet (IPv4 or IPv6). Retransmitted
-// segments are deduplicated by sequence number; a hole is an error.
-func tcpStream(raw []byte) ([]byte, error) {
+// tcpStreams reassembles, per connection, the TCP payload of a classic pcap
+// file holding one direction of traffic on Ethernet (IPv4 or IPv6).
+// Retransmitted segments are deduplicated by sequence number; a hole is an
+// error.
+func tcpStreams(raw []byte) ([]flowStream, error) {
 	if len(raw) < 24 {
 		return nil, errors.New("pcap: short file")
 	}
@@ -118,7 +133,8 @@ func tcpStream(raw []byte) ([]byte, error) {
 	if lt := bo.Uint32(raw[20:]); lt != 1 {
 		return nil, fmt.Errorf("pcap: link type %d, want Ethernet", lt)
 	}
-	var segs []segment
+	var order []string
+	byFlow := map[string][]segment{}
 	for off := 24; off+16 <= len(raw); {
 		n := int(bo.Uint32(raw[off+8:]))
 		off += 16
@@ -126,13 +142,26 @@ func tcpStream(raw []byte) ([]byte, error) {
 			return nil, errors.New("pcap: truncated record")
 		}
 		if s, ok := tcpSegment(raw[off : off+n]); ok && len(s.payload) > 0 {
-			segs = append(segs, s)
+			if _, seen := byFlow[s.flow]; !seen {
+				order = append(order, s.flow)
+			}
+			byFlow[s.flow] = append(byFlow[s.flow], s)
 		}
 		off += n
 	}
-	if len(segs) == 0 {
-		return nil, nil
+	out := make([]flowStream, 0, len(order))
+	for _, f := range order {
+		b, err := reassemble(byFlow[f])
+		if err != nil {
+			return nil, fmt.Errorf("connection from %s: %w", f, err)
+		}
+		out = append(out, flowStream{flow: f, bytes: b})
 	}
+	return out, nil
+}
+
+// reassemble orders one connection's segments and joins their payloads.
+func reassemble(segs []segment) ([]byte, error) {
 	base := segs[0].seq
 	sort.SliceStable(segs, func(i, j int) bool { return int32(segs[i].seq-base) < int32(segs[j].seq-base) })
 	start := segs[0].seq
@@ -161,6 +190,7 @@ func tcpSegment(f []byte) (segment, bool) {
 		et, p = binary.BigEndian.Uint16(f[16:]), f[18:]
 	}
 	var tcp []byte
+	var src string
 	switch et {
 	case 0x0800:
 		if len(p) < 20 || p[9] != 6 {
@@ -171,6 +201,7 @@ func tcpSegment(f []byte) (segment, bool) {
 			return segment{}, false
 		}
 		tcp = p[ihl:total]
+		src = net.IP(p[12:16]).String()
 	case 0x86dd:
 		if len(p) < 40 || p[6] != 6 {
 			return segment{}, false
@@ -180,6 +211,7 @@ func tcpSegment(f []byte) (segment, bool) {
 			return segment{}, false
 		}
 		tcp = p[40 : 40+plen]
+		src = net.IP(p[8:24]).String()
 	default:
 		return segment{}, false
 	}
@@ -190,7 +222,28 @@ func tcpSegment(f []byte) (segment, bool) {
 	if doff < 20 || doff > len(tcp) {
 		return segment{}, false
 	}
-	return segment{seq: binary.BigEndian.Uint32(tcp[4:]), payload: tcp[doff:]}, true
+	flow := net.JoinHostPort(src, strconv.Itoa(int(binary.BigEndian.Uint16(tcp[0:]))))
+	return segment{flow: flow, seq: binary.BigEndian.Uint32(tcp[4:]), payload: tcp[doff:]}, true
+}
+
+// containerAddrs returns a container's addresses on every network it joins.
+func containerAddrs(t *testing.T, name string) []string {
+	t.Helper()
+	out, err := exec.Command("sudo", "-n", "docker", "inspect", "-f",
+		"{{range .NetworkSettings.Networks}}{{.IPAddress}} {{.GlobalIPv6Address}} {{end}}", name).Output()
+	if err != nil {
+		t.Fatalf("docker inspect %s: %v", name, err)
+	}
+	var addrs []string
+	for _, a := range strings.Fields(string(out)) {
+		if net.ParseIP(a) != nil {
+			addrs = append(addrs, a)
+		}
+	}
+	if len(addrs) == 0 {
+		t.Fatalf("container %s has no address", name)
+	}
+	return addrs
 }
 
 // fetchObject reads one object over HTTP; a non-200 answer is an error.

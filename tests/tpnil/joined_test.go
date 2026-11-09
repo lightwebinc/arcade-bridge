@@ -70,12 +70,13 @@ type env struct {
 	rpc, rpcUser, rpcPass, mineTo, asset string
 	arcadeBridge, teranodeBridge, merkle string
 	headerLane                           string
-	// Lane byte identity, optional: the host interface of the fabric network
-	// and the transaction lane's port (MTS-02), and the proof bridge's
-	// retrieval plane, the datahub Merkle Service fetches from (MTS-05).
-	txLaneIface string
-	txLanePort  int
-	retrieval   string
+	// Lane byte identity, optional: the host interface of the fabric network,
+	// the transaction lane's port and the container at its far end, the
+	// processor bridge (MTS-02); and the proof bridge's retrieval plane, the
+	// datahub Merkle Service fetches from (MTS-05).
+	txLaneIface, txLaneContainer string
+	txLanePort                   int
+	retrieval                    string
 }
 
 func readEnv(t *testing.T) env {
@@ -88,22 +89,23 @@ func readEnv(t *testing.T) env {
 		return v
 	}
 	return env{
-		fixture:        get("TPNIL_FIXTURE", true),
-		profile:        get("TPNIL_PROFILE", true),
-		arcade:         strings.TrimRight(get("TPNIL_ARCADE_URL", true), "/"),
-		facade:         strings.TrimRight(get("TPNIL_FACADE_URL", true), "/"),
-		rpc:            get("TPNIL_TERANODE_RPC_URL", true),
-		rpcUser:        get("TPNIL_TERANODE_RPC_USER", true),
-		rpcPass:        get("TPNIL_TERANODE_RPC_PASSWORD", true),
-		mineTo:         get("TPNIL_MINE_ADDRESS", true),
-		asset:          strings.TrimRight(get("TPNIL_TERANODE_ASSET_URL", true), "/"),
-		arcadeBridge:   get("TPNIL_ARCADE_BRIDGE_METRICS", true),
-		teranodeBridge: get("TPNIL_TERANODE_BRIDGE_METRICS", true),
-		merkle:         get("TPNIL_MERKLE_METRICS", true),
-		headerLane:     strings.TrimRight(get("TPNIL_HEADER_LANE_URL", false), "/"),
-		txLaneIface:    get("TPNIL_TX_LANE_IFACE", false),
-		txLanePort:     port(t, get("TPNIL_TX_LANE_PORT", false)),
-		retrieval:      strings.TrimRight(get("TPNIL_PROOF_BRIDGE_RETRIEVAL_URL", false), "/"),
+		fixture:         get("TPNIL_FIXTURE", true),
+		profile:         get("TPNIL_PROFILE", true),
+		arcade:          strings.TrimRight(get("TPNIL_ARCADE_URL", true), "/"),
+		facade:          strings.TrimRight(get("TPNIL_FACADE_URL", true), "/"),
+		rpc:             get("TPNIL_TERANODE_RPC_URL", true),
+		rpcUser:         get("TPNIL_TERANODE_RPC_USER", true),
+		rpcPass:         get("TPNIL_TERANODE_RPC_PASSWORD", true),
+		mineTo:          get("TPNIL_MINE_ADDRESS", true),
+		asset:           strings.TrimRight(get("TPNIL_TERANODE_ASSET_URL", true), "/"),
+		arcadeBridge:    get("TPNIL_ARCADE_BRIDGE_METRICS", true),
+		teranodeBridge:  get("TPNIL_TERANODE_BRIDGE_METRICS", true),
+		merkle:          get("TPNIL_MERKLE_METRICS", true),
+		headerLane:      strings.TrimRight(get("TPNIL_HEADER_LANE_URL", false), "/"),
+		txLaneIface:     get("TPNIL_TX_LANE_IFACE", false),
+		txLaneContainer: get("TPNIL_TX_LANE_CONTAINER", false),
+		txLanePort:      port(t, get("TPNIL_TX_LANE_PORT", false)),
+		retrieval:       strings.TrimRight(get("TPNIL_PROOF_BRIDGE_RETRIEVAL_URL", false), "/"),
 	}
 }
 
@@ -205,8 +207,8 @@ func TestTPNIL_FabricJoinedPath(t *testing.T) {
 	// MTS-02: submit through Broadcaster; its propagation reaches the facade and
 	// the transaction lane delivers into Teranode.
 	var capture *laneCapture
-	if e.txLaneIface != "" && e.txLanePort != 0 {
-		capture = startLaneCapture(t, e.txLaneIface, e.txLanePort)
+	if e.txLaneIface != "" && e.txLanePort != 0 && e.txLaneContainer != "" {
+		capture = startLaneCapture(t, e.txLaneIface, e.txLanePort, containerAddrs(t, e.txLaneContainer))
 	}
 	status := post(t, ctx, e.arcade+"/tx", "application/octet-stream", ef)
 	if status/100 != 2 {
@@ -642,23 +644,32 @@ func sortedKeys(m map[string]string) []string {
 	return keys
 }
 
-// mts02LaneBytes requires the transaction lane's captured stream to be the
-// fixture's Extended Format bytes: one copy, or whole identical copies when
-// Broadcaster propagated the transaction more than once.
-func mts02LaneBytes(t *testing.T, stream, ef []byte) {
+// mts02LaneBytes requires every connection the transaction lane carried while
+// the capture ran to be whole, identical copies of the fixture's Extended
+// Format bytes, and at least one copy in all.
+func mts02LaneBytes(t *testing.T, flows []flowStream, ef []byte) {
 	t.Helper()
-	if len(stream) == 0 || len(stream)%len(ef) != 0 {
-		t.Fatalf("the transaction lane carried %d bytes (sha256 %s...); the fixture's Extended Format is %d bytes (sha256 %s...)",
-			len(stream), digest(stream), len(ef), digest(ef))
-	}
-	copies := len(stream) / len(ef)
-	for i := range copies {
-		if !bytes.Equal(stream[i*len(ef):(i+1)*len(ef)], ef) {
-			t.Fatalf("copy %d of %d on the transaction lane differs from the fixture's Extended Format bytes", i+1, copies)
+	copies := 0
+	var seen []string
+	for _, f := range flows {
+		seen = append(seen, fmt.Sprintf("%s: %d bytes, sha256 %s...", f.flow, len(f.bytes), digest(f.bytes)))
+		if len(f.bytes)%len(ef) != 0 {
+			t.Fatalf("the transaction lane carried bytes other than the fixture's Extended Format (%d bytes, sha256 %s...): %s",
+				len(ef), digest(ef), strings.Join(seen, "; "))
+		}
+		for i := 0; i < len(f.bytes); i += len(ef) {
+			if !bytes.Equal(f.bytes[i:i+len(ef)], ef) {
+				t.Fatalf("the transaction lane carried %d bytes that differ from the fixture's Extended Format (sha256 %s...): %s",
+					len(ef), digest(ef), strings.Join(seen, "; "))
+			}
+			copies++
 		}
 	}
-	t.Logf("MTS-02 the transaction lane carried the fixture's Extended Format bytes exactly: %d bytes, sha256 %s..., %d copies, captured on the fabric network between the delivery edge and the processor bridge",
-		len(ef), digest(ef), copies)
+	if copies == 0 {
+		t.Fatalf("the transaction lane carried no bytes while the capture ran")
+	}
+	t.Logf("MTS-02 the transaction lane carried the fixture's Extended Format bytes exactly: %d bytes, sha256 %s..., %d copies on %d connections, captured on the fabric network between the delivery edge and the processor bridge",
+		len(ef), digest(ef), copies, len(flows))
 }
 
 // mts05LaneBytes requires the objects the proof bridge serves Merkle Service,

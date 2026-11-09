@@ -37,7 +37,7 @@ func TestLaneCaptureLoopback(t *testing.T) {
 	payload := make([]byte, 200_000) // many segments
 	_, _ = rand.Read(payload)
 
-	capture := startLaneCapture(t, "lo", ln.Addr().(*net.TCPAddr).Port)
+	capture := startLaneCapture(t, "lo", ln.Addr().(*net.TCPAddr).Port, []string{"::1"})
 	c, err := net.Dial("tcp", ln.Addr().String())
 	if err != nil {
 		t.Fatal(err)
@@ -49,8 +49,8 @@ func TestLaneCaptureLoopback(t *testing.T) {
 	if b := <-got; !bytes.Equal(b, payload) {
 		t.Fatalf("the receiver read %d bytes, want %d", len(b), len(payload))
 	}
-	stream := capture.stop(t)
-	if !bytes.Equal(stream, payload) {
-		t.Fatalf("captured %d bytes (sha256 %s...), sent %d (sha256 %s...)", len(stream), digest(stream), len(payload), digest(payload))
+	flows := capture.stop(t)
+	if len(flows) != 1 || !bytes.Equal(flows[0].bytes, payload) {
+		t.Fatalf("captured %d connections, want 1 carrying the %d bytes sent (sha256 %s...)", len(flows), len(payload), digest(payload))
 	}
 }

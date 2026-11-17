@@ -34,7 +34,7 @@ COPY --from=builder /out/ /usr/local/bin/
 # The licences travel with the image, not only with the source tree. The binary
 # above is statically linked, so it contains the code of every module in
 # LICENSE-THIRD-PARTY and none of their licence files. Apache-2.0 section 4,
-# MIT, BSD-3 and Open BSV all require their text to reach the recipient of a
+# MIT, BSD-3 and ISC all require their text to reach the recipient of a
 # binary, so an image carrying the code and not the notices does not discharge
 # any of them.
 COPY LICENSE NOTICE LICENSE-THIRD-PARTY /usr/share/doc/arcade-bridge/

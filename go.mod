@@ -3,7 +3,7 @@ module github.com/lightwebinc/arcade-bridge
 go 1.26.2
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.7.4
+	github.com/bsv-blockchain/go-sdk v1.7.5
 	github.com/lightwebinc/shard-common v0.27.2
 	github.com/lightwebinc/teranode-bridge v0.13.0
 	github.com/prometheus/client_golang v1.25.0

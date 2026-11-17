@@ -1,7 +1,7 @@
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
-github.com/bsv-blockchain/go-sdk v1.7.4 h1:FqeReOBYNOgUBF4/qTQqqpOrSjD8sRhTu2RIT/G8ZMc=
-github.com/bsv-blockchain/go-sdk v1.7.4/go.mod h1:JrqAZhpbJmob3+ouaXGCQPU08OBwWLxOV9rurOaVZs4=
+github.com/bsv-blockchain/go-sdk v1.7.5 h1:QLClmnX5m7/AUJpoSVkq7cKEInFTty3qnRZDc59ji3Q=
+github.com/bsv-blockchain/go-sdk v1.7.5/go.mod h1:+soad7WHBrvMGTpznMGJeOcQxZ3rWtLzWmcfhOSfPag=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=

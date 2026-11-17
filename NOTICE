@@ -78,8 +78,10 @@ Version 5, whose grant was revocable and limited to the BSV Blockchains;
 those terms do not apply to v1.7.5.
 
 Section 4(d) of the Apache License asks for more than its text: where a
-module ships a NOTICE file, its attribution notices travel too. go-sdk
-ships one, and its attribution notices are these:
+module ships a NOTICE file, its attribution notices travel too.
+LICENSE-THIRD-PARTY reproduces the NOTICE of every linked module that
+ships one, after that module's license. go-sdk's is repeated here,
+because it names licenses whose text go-sdk does not ship:
 
   github.com/bsv-blockchain/go-sdk
     go-sdk

@@ -79,7 +79,7 @@ type Stats struct {
 }
 
 // Producer publishes announcements. Publishes are synchronous: an
-// announcement that cannot be produced is an error the lane handler sees,
+// announcement that cannot be produced is an error the caller sees,
 // because merkle-service cannot re-observe a one-shot announcement.
 type Producer struct {
 	cl  *kgo.Client

@@ -2,8 +2,10 @@
 
 Every bridge series is `arcade_bridge_*`, served on `-metrics-addr` (default
 `[::]:9167`) beside the Go runtime and process collectors (`go_*`,
-`process_*`, `promhttp_*`). All values are read from the bridge's internal
-counters at scrape time, so they reset to zero on restart. The format mirrors
+`process_*`, `promhttp_*`). Every bridge series is read from the bridge's
+internal state at scrape time: counters start again at zero on restart, and
+gauges (cache size, announce queue capacity and depth) report the current
+value. The format mirrors
 [teranode-bridge's metrics reference](https://github.com/lightwebinc/teranode-bridge/blob/main/docs/references/prometheusMetrics.md).
 
 ## Metric types

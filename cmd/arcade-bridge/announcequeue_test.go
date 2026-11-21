@@ -43,8 +43,8 @@ func (s *slowAnnouncer) Block(ctx context.Context, _ string, _ uint64, _, _ []by
 // THE regression this whole change exists for: handleSubtree must return while
 // the announce is still in flight. lanes.Lane calls Handle inline in its
 // per-connection read loop, so a handler that waits on Kafka is a socket that
-// is not being read, and the EDGE, not this process, pays for it: measured on
-// devnet 2026-09-17, 6,016 queue_full sheds against 4,145 objects delivered.
+// is not being read, and the EDGE, not this process, pays for it by shedding
+// the objects it cannot write.
 //
 // The assertion is deliberately about TIME rather than about the queue's
 // internals: "the read loop is not blocked" is the property, and any future

@@ -54,7 +54,7 @@ conversion) is imported from teranode-bridge's public packages, never forked.
 
 ## Requirements
 
-- Go 1.26 or later
+- Go 1.26.2 or later
 - A reachable merkle-service Kafka and an Arcade v2 stack (or `-mode sink`,
   which needs neither)
 - Network reachability from the stack's containers back to the bridge's
@@ -115,7 +115,7 @@ and the retrieval plane is listening. See the
 A Kubernetes Helm chart is published from a dedicated chart repository:
 
 - Repository: [`charts/arcade-bridge`](https://github.com/lightwebinc/charts/tree/main/charts/arcade-bridge)
-- OCI: `helm install bridge oci://ghcr.io/lightwebinc/charts/arcade-bridge --version 0.1.3`
+- OCI: `helm install bridge oci://ghcr.io/lightwebinc/charts/arcade-bridge --version 0.1.4`
 
 `config.advertise` and `config.kafka` are effectively required unless
 `config.mode=sink`; setting `config.edgeIngress` turns the facade on. See the
@@ -129,11 +129,12 @@ chart README for the three-service shape and scaling notes.
 ├── msannounce/          # merkle-service announcement messages + Kafka producer
 ├── facade/              # Teranode-shaped POST /txs surface + EF hydration
 ├── uptunnel/            # bare EF stream to the fabric ingress, with failover
+├── tests/tpnil/         # TPNIL joined qualification tests (build tag `tpnil`; run against a live stack by multicast-test's tpnil/joined)
 ├── docs/                # architecture, configuration, metrics reference
-├── scripts/             # third-party license file generator
+├── scripts/             # third-party license file generator (runs the shared one from lightwebinc/ci)
 ├── Dockerfile
 ├── Makefile
-└── .github/workflows/{ci,codeql,image-publish,release,vuln}.yml
+└── .github/workflows/{ci,codeql,image-publish,release,scorecard,vuln,workflow-lint}.yml
 ```
 
 ## Dependencies

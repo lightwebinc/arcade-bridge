@@ -106,9 +106,9 @@ parses it per transaction:
   the list was accepted. The facade emits `TX_MISSING_PARENT (34)` for an
   unresolvable parent and `TX_INVALID (31)` for a malformed stream.
 - **A non-200 without that body shape** is pure infrastructure: no
-  per-transaction vote, Arcade requeues. The facade answers a bodyless 503
-  when the up-tunnel itself is down, because that is an endpoint condition,
-  not a verdict about any transaction.
+  per-transaction vote, Arcade requeues. The facade answers a 503 with no
+  failure list when the up-tunnel itself is down, because that is an endpoint
+  condition, not a verdict about any transaction.
 
 Honoring the grammar exactly is what lets Arcade's classifier, its durable
 retry reaper, and its wallet-visible rows behave identically against the
@@ -161,10 +161,10 @@ header, exactly as the chain identifies it.
 
 | Failure | Behavior |
 | --- | --- |
-| Kafka unreachable at startup | warn and continue; the first announcement that cannot be produced surfaces as a handler error |
-| Kafka down mid-run | the announcement fails and is counted (`announce_failures_total`, lane `errors`); the connection is kept. The object stays cached and servable but is NOT recorded as announced, so the next redelivery announces it again. Nothing re-announces on its own: an object delivered exactly once while Kafka was down stays unannounced |
+| Kafka unreachable at startup | warn and continue; an announcement that cannot be produced is counted as in the next row |
+| Kafka down mid-run | the announcement fails and is counted (`announce_failures_total`, plus `announce_queue_failed_total`, or lane `errors` when `-announce-queue 0` announces inline); the connection is kept. The object stays cached and servable but is NOT recorded as announced, so the next redelivery announces it again. Nothing re-announces on its own: an object delivered exactly once while Kafka was down stays unannounced |
 | retrieval fetch for an expired object | honest 404, never an empty 200; merkle-service classifies by announcement age |
-| up-tunnel down | facade answers a bodyless 503 (infrastructure, not verdict); Arcade requeues |
+| up-tunnel down | facade answers a 503 with no failure list (infrastructure, not verdict); Arcade requeues |
 | malformed object on a delivery lane | connection dropped (a bare stream has no resync point), `lane_connections_dropped_total` incremented, the edge redials |
 | malformed transaction in a batch | one `TX_INVALID` line, remaining stream abandoned (self-delimiting streams cannot resync); Arcade narrows the chunk and resubmits |
 | unresolvable parent | `TX_MISSING_PARENT` verdict for that transaction only; the rest of the batch proceeds |
@@ -174,8 +174,9 @@ header, exactly as the chain identifies it.
 ```
 cmd/arcade-bridge/   wiring: flags, lane handlers, collector, stats loop
 msannounce/          SubtreeMessage / BlockMessage + synchronous Kafka producer
-                     (called from the announce QUEUE, never from a lane handler:
-                      the lane reads inline, so announcing there stalls the socket)
+                     (called from the announce QUEUE, not from a lane handler
+                      unless -announce-queue 0: the lane reads inline, so
+                      announcing there stalls the socket)
 facade/              HTTP surface, verdict grammar, EF hydration, ParentSource
 uptunnel/            long-lived bare EF stream with address failover
 ```

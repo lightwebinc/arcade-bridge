@@ -17,12 +17,10 @@ import (
 // window fills, the edge's write blocks, and at its deadline the edge counts an
 // i/o timeout and eventually sheds the object.
 //
-// That is not a theoretical coupling. Measured on devnet 2026-09-17, consumer
-// arcade-us: 6,016 queue_full sheds against 4,145 subtree objects delivered:
-// the edge shedding the majority of a lane because THIS process was not
-// draining it. Every diagnostic on the edge pointed at a healthy fabric and a
-// slow subscriber, which was correct and useless: the cause was downstream
-// latency arriving as TCP backpressure.
+// That is not a theoretical coupling: an edge can shed the majority of a lane
+// because THIS process is not draining it. Every diagnostic on the edge then
+// points at a healthy fabric and a slow subscriber, which is correct and
+// useless: the cause is downstream latency arriving as TCP backpressure.
 //
 // The fix is to make the read loop's work bounded and local: cache the object
 // (in-memory, microseconds) and hand the announce to a worker. The socket then
@@ -32,8 +30,7 @@ import (
 // unbounded memory here, which is a worse failure than the one being fixed.
 // When it fills the drop is explicit, counted and logged HERE, the honest
 // place, instead of appearing as loss on the edge's socket where nothing can
-// attribute it. This mirrors sdapool's split between a shed (the subscriber is
-// behind) and a drop (there is nowhere to put it).
+// attribute it.
 type announceQueue struct {
 	ch   chan announceJob
 	log  *slog.Logger

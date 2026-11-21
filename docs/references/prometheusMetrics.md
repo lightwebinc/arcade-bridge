@@ -1,8 +1,11 @@
 # arcade-bridge Prometheus Metrics Reference
 
-Every series is `arcade_bridge_*`, served on `-metrics-addr` (default
-`[::]:9167`). All values are read from the bridge's internal counters at scrape
-time, so they reset to zero on restart. The format mirrors
+Every bridge series is `arcade_bridge_*`, served on `-metrics-addr` (default
+`[::]:9167`) beside the Go runtime and process collectors (`go_*`,
+`process_*`, `promhttp_*`). Every bridge series is read from the bridge's
+internal state at scrape time: counters start again at zero on restart, and
+gauges (cache size, announce queue capacity and depth) report the current
+value. The format mirrors
 [teranode-bridge's metrics reference](https://github.com/lightwebinc/teranode-bridge/blob/main/docs/references/prometheusMetrics.md).
 
 ## Metric types
@@ -26,7 +29,7 @@ time, so they reset to zero on restart. The format mirrors
 |-------------|------|-------------|
 | `arcade_bridge_lane_objects_total` | Counter | Objects received, by `lane` (`subtree`, `block`). |
 | `arcade_bridge_lane_bytes_total` | Counter | Bytes received, by `lane`. |
-| `arcade_bridge_lane_errors_total` | Counter | Objects whose handler failed, by `lane`: the announcement did not produce, or the frame could not be parsed for its inline block fields. The object stays cached and the connection is kept; the next redelivery announces it again. Framing faults are not counted here. |
+| `arcade_bridge_lane_errors_total` | Counter | Objects whose handler failed, by `lane`: the frame could not be parsed for its inline block fields, or, with `-announce-queue 0`, the inline announcement did not produce. With the announce queue (the default) a failed announcement counts in `arcade_bridge_announce_queue_failed_total` instead. The object stays cached and the connection is kept; the next redelivery announces it again. Framing faults are not counted here. |
 | `arcade_bridge_lane_connections_dropped_total` | Counter | Connections dropped on a framing fault (a malformed object, or one over `-max-object`), by `lane`. A bare stream has no resync point, so the connection must go. |
 | `arcade_bridge_lane_objects_rejected_total` | Counter | Well-framed objects refused on lane format policy, by `lane`. No lane enforces one today, so non-zero is unexpected; exported for parity with teranode-bridge. |
 

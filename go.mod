@@ -3,7 +3,7 @@ module github.com/lightwebinc/arcade-bridge
 go 1.26.2
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.7.5
+	github.com/bsv-blockchain/go-sdk v1.7.8
 	github.com/lightwebinc/shard-common v0.27.3
 	github.com/lightwebinc/teranode-bridge v0.13.2
 	github.com/prometheus/client_golang v1.25.0
@@ -18,7 +18,7 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/klauspost/compress v1.20.3 // indirect
-	github.com/mrz1836/go-whatsonchain v1.3.0 // indirect
+	github.com/mrz1836/go-whatsonchain v1.3.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pierrec/lz4/v4 v4.1.33 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

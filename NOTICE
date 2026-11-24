@@ -72,10 +72,10 @@ receives a binary and static linking discards the files they live in.
   github.com/klauspost/compress               BSD 3-Clause License
   github.com/pierrec/lz4/v4                   BSD 3-Clause License
 
-go-sdk is under the Apache License 2.0 from v1.7.5, the version
-arcade-bridge builds on. Earlier versions were under the Open BSV License
+go-sdk is under the Apache License 2.0 from v1.7.5; arcade-bridge
+builds on v1.7.8. Versions before v1.7.5 were under the Open BSV License
 Version 5, whose grant was revocable and limited to the BSV Blockchains;
-those terms do not apply to v1.7.5.
+those terms do not apply from v1.7.5.
 
 Section 4(d) of the Apache License asks for more than its text: where a
 module ships a NOTICE file, its attribution notices travel too.

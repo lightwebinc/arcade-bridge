@@ -1,7 +1,7 @@
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
-github.com/bsv-blockchain/go-sdk v1.7.5 h1:QLClmnX5m7/AUJpoSVkq7cKEInFTty3qnRZDc59ji3Q=
-github.com/bsv-blockchain/go-sdk v1.7.5/go.mod h1:+soad7WHBrvMGTpznMGJeOcQxZ3rWtLzWmcfhOSfPag=
+github.com/bsv-blockchain/go-sdk v1.7.8 h1:iRA9hPXIRxlSD4eTdAwgEZ7DONFMJQRJXsjuY4r62+Y=
+github.com/bsv-blockchain/go-sdk v1.7.8/go.mod h1:amCXCLXrvTHVVMGNKKmCx6xa2NA2aa39RyhQylj8Jko=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
@@ -25,8 +25,8 @@ github.com/lightwebinc/shard-common v0.27.3 h1:f7Ya1X3fj+sO2OKOVCwDUjDDy7o9atHel
 github.com/lightwebinc/shard-common v0.27.3/go.mod h1:OVCKu7VRtlhDOTb5n/FkDf15xkovglBGLF0quWTjt9U=
 github.com/lightwebinc/teranode-bridge v0.13.2 h1:B68SzT42tYrWXw9f5HLEnFI/mSyP/MLRmQ4y7xWAUjY=
 github.com/lightwebinc/teranode-bridge v0.13.2/go.mod h1:Hgba3Cw7XKNA7e+YTdlIPBgE/xORNyBilOtnPzFaPQ4=
-github.com/mrz1836/go-whatsonchain v1.3.0 h1:uOq5mHPTMUfiyMAFv+wqRgZXZ5L3CrObaIdShnX/yzU=
-github.com/mrz1836/go-whatsonchain v1.3.0/go.mod h1:SAMQltVzWjjBSSIM9KBoLRTFuv9fIrejyEUK95qPDZI=
+github.com/mrz1836/go-whatsonchain v1.3.1 h1:XPk44Du+MmhxpqEyvVrenIraD+HvT72OuD+GDv1r8F0=
+github.com/mrz1836/go-whatsonchain v1.3.1/go.mod h1:SAMQltVzWjjBSSIM9KBoLRTFuv9fIrejyEUK95qPDZI=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/pierrec/lz4/v4 v4.1.33 h1:GjG1TJ1V4IzKP8L96muuuDNpTwd7D+l2ccXrjAbe014=
